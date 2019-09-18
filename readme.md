@@ -9,7 +9,7 @@ Having a single file contains both code and its dependencies is a useful feature
 
 This example script took 0.5 seconds to run on my machine:
 
-```
+```python
 #! /usr/bin/env nix-shell
 #! nix-shell -i python -p python
 
@@ -19,10 +19,11 @@ print "Hello world!"
 Scripts with more dependencies can take a couple of seconds just to set up the environment.
 
 
-## Installtion
+## Installation
 
-Clone the repository and run `nix-env -i -f default.nix`.
-
+```sh
+nix-env -i -f https://github.com/xzfc/cached-nix-shell/tarball/master
+```
 
 ## Usage
 
@@ -51,7 +52,7 @@ cached-nix-shell ./test.py
 
 ## Caveats
 
-Cache could be staled in following situations:
+The cache could be staled in the following situations:
 
 * Access to external files: `#! nix-shell -p "import ./foo.nix"`
 * Probably there is more
