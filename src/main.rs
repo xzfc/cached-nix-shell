@@ -7,36 +7,37 @@ extern crate shellwords;
 extern crate xdg;
 extern crate crypto;
 
-// Dump environment variables except
-fn dump_env() {
-    let mut out = serde_json::map::Map::new();
-    static IGNORED : [&str; 7] = [
-        // Passed to pure as is.
-        // Reference: src/nix-build/nix-build.cc:100
-        // "HOME", "USER", "LOGNAME", "DISPLAY", "PATH", "TERM", "IN_NIX_SHELL",
-        // "TZ", "PAGER", "NIX_BUILD_SHELL", "SHLVL",
-        // TODO: handle PATH
-        // TODO: preserve other vars
+use std::ffi::{OsStr, OsString};
 
-        // Added on each nix-shell invocation
-        // Reference: src/nix-build/nix-build.cc:386
-        "NIX_BUILD_TOP", "TMPDIR", "TEMPDIR", "TMP", "TEMP",
-        "NIX_STORE",
-        "NIX_BUILD_CORES",
-    ];
-    for (key, value) in std::env::vars() {
-        if IGNORED.contains(&key.as_ref()) {
-            continue;
-        }
-        out.insert(key, json!(value));
-    }
-    println!("{}", json!(out).to_string());
+type EnvMap = std::collections::HashMap<std::ffi::OsString, std::ffi::OsString>;
+
+struct Nope {
+    env: EnvMap,
+    drv: String,
 }
 
-#[derive(Debug, serde::Serialize)]
-struct Nope {
-    env: std::collections::HashMap<String, String>,
-    drv: String,
+fn serialize_env(env: &EnvMap) -> Vec<u8> {
+    let mut vec = Vec::new();
+    for (k, v) in env {
+        use std::os::unix::ffi::OsStrExt;
+        vec.extend(k.as_bytes());
+        vec.push(b'=');
+        vec.extend(v.as_bytes());
+        vec.push(0);
+    }
+    vec
+}
+
+fn deserealize_env(vec: Vec<u8>) -> EnvMap {
+    vec
+        .split(|&b| b == 0)
+        .filter(|&var| var.len() != 0) // last var has trailing space
+        .map(|var| {
+            use std::os::unix::ffi::OsStrExt;
+            let pos = var.iter().position(|&x| x == b'=').unwrap();
+            (OsStr::from_bytes(&var[0..pos]).to_owned(),
+             OsStr::from_bytes(&var[pos+1..]).to_owned())
+        }).collect::<std::collections::HashMap<_, _>>()
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -47,28 +48,7 @@ struct Noope {
 
 fn nope(rest: Vec<&str>) -> Nope {
     let env = {
-        let dump_env = {
-            let exe = std::env::current_exe().unwrap().into_os_string();
-            let exe = match exe.into_string() {
-                Ok(x) => x,
-                Err(_) => {
-                    // TODO: handle invalid UTF-8
-                    eprintln!("Error: invalid UTF-8 in absolute path");
-                    std::process::exit(1);
-                }
-            };
-            let exe = shellwords::escape(&exe);
-            format!("{} --dump-env", &exe)
-        };
-
-        let mut args = Vec::<&str>::new();
-        args.push("--pure");
-        args.push("--packages");
-
-        args.push("--run");
-        args.push(&dump_env);
-
-        args.push("--");
+        let mut args = vec!["--pure", "--packages", "--run", "env -0", "--"];
         args.extend(rest);
 
         let exec = std::process::Command::new("nix-shell")
@@ -79,17 +59,35 @@ fn nope(rest: Vec<&str>) -> Nope {
         if !exec.status.success() {
             std::process::exit(1);
         }
-        let output = String::from_utf8(exec.stdout).expect("failed to decode");
-        let env : std::collections::HashMap<String, String> =
-            serde_json::from_str(&output).expect("failed to parse json");
+        let mut env = deserealize_env(exec.stdout);
+
+        static IGNORED : [&str; 7] = [
+            // Passed to pure as is.
+            // Reference: src/nix-build/nix-build.cc:100
+            // "HOME", "USER", "LOGNAME", "DISPLAY", "PATH", "TERM", "IN_NIX_SHELL",
+            // "TZ", "PAGER", "NIX_BUILD_SHELL", "SHLVL",
+            // TODO: handle PATH
+            // TODO: preserve other vars
+
+            // Added on each nix-shell invocation
+            // Reference: src/nix-build/nix-build.cc:386
+            "NIX_BUILD_TOP", "TMPDIR", "TEMPDIR", "TMP", "TEMP",
+            "NIX_STORE",
+            "NIX_BUILD_CORES",
+        ];
+
+        for i in IGNORED.iter() {
+            env.remove(OsStr::new(i));
+        }
         env
     };
 
-    let env_out = env.get("out").expect("expected to have `out` environment variable");
+
+    let env_out = env.get(OsStr::new("out")).expect("expected to have `out` environment variable");
 
     let drv : String = {
         let exec = std::process::Command::new("nix")
-            .args(vec!["show-derivation", env_out])
+            .args(vec![std::ffi::OsStr::new("show-derivation"), env_out])
             .stderr(std::process::Stdio::inherit())
             .output()
             .expect("failed to execute nix show-derivation");
@@ -170,8 +168,6 @@ fn clap_app() -> clap::App::<'static, 'static> {
         .arg(clap::Arg::with_name("INTERPRETER")
              .short("i")
              .takes_value(true))
-        .arg(clap::Arg::with_name("DUMP")
-             .long("dump-env"))
         .arg(clap::Arg::with_name("REST")
              .multiple(true))
 }
@@ -211,7 +207,7 @@ fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<Str
     }
 }
 
-fn cached_nope(rest: Vec<&str>) -> std::collections::HashMap<String, String> {
+fn cached_nope(rest: Vec<&str>) -> std::collections::HashMap<OsString, OsString> {
     let noope = json!(Noope {
         args: rest.iter().map(|x| x.to_string()).collect(),
         nixpkgs_version: get_nixpkgs_version(),
@@ -229,8 +225,8 @@ fn cached_nope(rest: Vec<&str>) -> std::collections::HashMap<String, String> {
     } else {
         let n = nope(rest);
 
-        cache_write(&nooope_hash, "inputs", noope);
-        cache_write(&nooope_hash, "env", json!(n.env).to_string());
+        cache_write(&nooope_hash, "inputs", &noope.as_bytes().to_vec());
+        cache_write(&nooope_hash, "env", &serialize_env(&n.env));
         cache_symlink(&nooope_hash, "drv", &n.drv);
         // TODO: store gcroot
         // TODO: `#! cached-nix-shell --store`
@@ -239,14 +235,19 @@ fn cached_nope(rest: Vec<&str>) -> std::collections::HashMap<String, String> {
     }
 }
 
-fn check_cache(hash: &str) -> Option<std::collections::HashMap<String, String>> {
+fn check_cache(hash: &str) -> Option<std::collections::HashMap<OsString, OsString>> {
     let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
 
     let env_fname = xdg_dirs.find_cache_file(format!("{}.env", hash))?;
     let drv_fname = xdg_dirs.find_cache_file(format!("{}.drv", hash))?;
 
-    let env_file = std::fs::File::open(env_fname).unwrap();
-    let env = serde_json::from_reader(env_file).expect("error parsing json");
+    let mut env_file = std::fs::File::open(env_fname).unwrap();
+    let mut env_buf = Vec::<u8>::new();
+    {
+        use std::io::Read;
+        env_file.read_to_end(&mut env_buf).unwrap();
+    }
+    let env = deserealize_env(env_buf);
 
     let drv_store_fname = std::fs::read_link(drv_fname).ok()?;
     std::fs::metadata(drv_store_fname).ok()?;
@@ -254,13 +255,13 @@ fn check_cache(hash: &str) -> Option<std::collections::HashMap<String, String>> 
     return Some(env);
 }
 
-fn cache_write(hash: &str, ext: &str, text: String) {
+fn cache_write(hash: &str, ext: &str, text: &Vec<u8>) {
     let f = || -> Result<(), std::io::Error> {
         use std::io::Write;
         let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
         let fname = xdg_dirs.place_cache_file(format!("{}.{}", hash, ext))?;
         let mut file = std::fs::File::create(fname)?;
-        file.write_all(&text.as_bytes().to_vec())?;
+        file.write_all(text)?;
         Ok(())
     };
     match f() {
@@ -285,11 +286,6 @@ fn cache_symlink(hash: &str, ext: &str, target: &str) {
 
 fn main() {
     let argv: Vec<String> = std::env::args().into_iter().collect();
-
-    if argv.len() == 2 && argv[1] == "--dump-env" {
-        dump_env();
-        std::process::exit(0);
-    }
 
     if argv.len() >= 2 {
         let fname = &argv[1];
