@@ -23,6 +23,7 @@ Scripts with more dependencies can take a couple of seconds just to set up the e
 
 Clone the repository and run `nix-env -i -f default.nix`.
 
+
 ## Usage
 
 Just replace `nix-shell` with `cached-nix-shell` in the shebang line:
@@ -43,9 +44,10 @@ $ time ./test.py
 
 Alternatively, call `cached-nix-shell` directly:
 
-```
+```sh
 cached-nix-shell ./test.py
 ```
+
 
 ## Caveats
 
@@ -53,6 +55,7 @@ Cache could be staled in following situations:
 
 * Access to external files: `#! nix-shell -p "import ./foo.nix"`
 * Probably there is more
+
 
 ## License
 

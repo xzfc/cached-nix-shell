@@ -12,12 +12,14 @@ fn dump_env() {
     let mut out = serde_json::map::Map::new();
     static IGNORED : [&str; 7] = [
         // Passed to pure as is.
-        // 100
+        // Reference: src/nix-build/nix-build.cc:100
         // "HOME", "USER", "LOGNAME", "DISPLAY", "PATH", "TERM", "IN_NIX_SHELL",
         // "TZ", "PAGER", "NIX_BUILD_SHELL", "SHLVL",
+        // TODO: handle PATH
+        // TODO: preserve other vars
 
         // Added on each nix-shell invocation
-        // 386
+        // Reference: src/nix-build/nix-build.cc:386
         "NIX_BUILD_TOP", "TMPDIR", "TEMPDIR", "TMP", "TEMP",
         "NIX_STORE",
         "NIX_BUILD_CORES",
