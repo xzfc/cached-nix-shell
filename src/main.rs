@@ -45,8 +45,19 @@ struct Noope {
 
 fn nope(rest: Vec<&str>) -> Nope {
     let env = {
-        let argv0 = std::env::args().into_iter().next().unwrap();
-        let dump_env = &format!("{} --dump-env", argv0);
+        let dump_env = {
+            let exe = std::env::current_exe().unwrap().into_os_string();
+            let exe = match exe.into_string() {
+                Ok(x) => x,
+                Err(_) => {
+                    // TODO: handle invalid UTF-8
+                    eprintln!("Error: invalid UTF-8 in absolute path");
+                    std::process::exit(1);
+                }
+            };
+            let exe = shellwords::escape(&exe);
+            format!("{} --dump-env", &exe)
+        };
 
         let mut args = Vec::<&str>::new();
         args.push("--pure");
@@ -211,12 +222,7 @@ fn cached_nope(rest: Vec<&str>) -> std::collections::HashMap<String, String> {
         hasher.result_str()
     };
 
-    let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
-
-    if let Some(env_fname) = xdg_dirs.find_cache_file(format!("{}.env", nooope_hash)) {
-        // There is cached version already
-        let env_file = std::fs::File::open(env_fname).unwrap();
-        let env = serde_json::from_reader(env_file).expect("error parsing json");
+    if let Some(env) = check_cache(&nooope_hash) {
         return env;
     } else {
         let n = nope(rest);
@@ -224,9 +230,26 @@ fn cached_nope(rest: Vec<&str>) -> std::collections::HashMap<String, String> {
         cache_write(&nooope_hash, "inputs", noope);
         cache_write(&nooope_hash, "env", json!(n.env).to_string());
         cache_symlink(&nooope_hash, "drv", &n.drv);
+        // TODO: store gcroot
+        // TODO: `#! cached-nix-shell --store`
 
         return n.env;
     }
+}
+
+fn check_cache(hash: &str) -> Option<std::collections::HashMap<String, String>> {
+    let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
+
+    let env_fname = xdg_dirs.find_cache_file(format!("{}.env", hash))?;
+    let drv_fname = xdg_dirs.find_cache_file(format!("{}.drv", hash))?;
+
+    let env_file = std::fs::File::open(env_fname).unwrap();
+    let env = serde_json::from_reader(env_file).expect("error parsing json");
+
+    let drv_store_fname = std::fs::read_link(drv_fname).ok()?;
+    std::fs::metadata(drv_store_fname).ok()?;
+
+    return Some(env);
 }
 
 fn cache_write(hash: &str, ext: &str, text: String) {
@@ -248,6 +271,7 @@ fn cache_symlink(hash: &str, ext: &str, target: &str) {
     let f = || -> Result<(), std::io::Error> {
         let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
         let fname = xdg_dirs.place_cache_file(format!("{}.{}", hash, ext))?;
+        let _ = std::fs::remove_file(&fname);
         std::os::unix::fs::symlink(target, &fname)?;
         Ok(())
     };

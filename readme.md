@@ -49,7 +49,7 @@ cached-nix-shell ./test.py
 
 ## Caveats
 
-Cache can be staled in following situations:
+Cache could be staled in following situations:
 
 * Access to external files: `#! nix-shell -p "import ./foo.nix"`
 * Probably there is more

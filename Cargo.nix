@@ -13,7 +13,7 @@ rec {
       version = "0.1.0";
       authors = [ "Albert Safin <xzfcpw@gmail.com>" ];
       edition = "2018";
-      src = include [ "src/**/*" "Cargo.toml" ] ./.;
+      src = exclude [ ".git" "target" ] ./.;
       dependencies = mapFeatures features ([
         (cratesIO.crates."clap"."${deps."cached_nix_shell"."0.1.0"."clap"}" deps)
         (cratesIO.crates."regex"."${deps."cached_nix_shell"."0.1.0"."regex"}" deps)
