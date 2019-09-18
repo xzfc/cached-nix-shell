@@ -11,11 +11,6 @@ use std::ffi::{OsStr, OsString};
 
 type EnvMap = std::collections::HashMap<std::ffi::OsString, std::ffi::OsString>;
 
-struct Nope {
-    env: EnvMap,
-    drv: String,
-}
-
 fn serialize_env(env: &EnvMap) -> Vec<u8> {
     let mut vec = Vec::new();
     for (k, v) in env {
@@ -42,13 +37,7 @@ fn deserealize_env(vec: Vec<u8>) -> EnvMap {
         .collect::<std::collections::HashMap<_, _>>()
 }
 
-#[derive(Debug, serde::Serialize)]
-struct Noope {
-    args: Vec<String>,
-    nixpkgs_version: String,
-}
-
-fn nope(rest: Vec<&str>) -> Nope {
+fn get_shell_env(rest: Vec<&str>) -> (EnvMap, String) {
     let env = {
         let mut args = vec!["--pure", "--packages", "--run", "env -0", "--"];
         args.extend(rest);
@@ -110,7 +99,7 @@ fn nope(rest: Vec<&str>) -> Nope {
         drv.clone()
     };
 
-    Nope { env: env, drv: drv }
+    (env, drv)
 }
 
 fn get_nixpkgs_version() -> String {
@@ -205,7 +194,7 @@ fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<Str
 
     let matches_interpreter = matches.value_of("INTERPRETER").unwrap();
 
-    let n = cached_nope(matches_rest);
+    let n = cached_shell_env(matches_rest);
 
     {
         let mut interpreter_args = script_args;
@@ -219,32 +208,33 @@ fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<Str
     }
 }
 
-fn cached_nope(rest: Vec<&str>) -> EnvMap {
-    let noope = json!(Noope {
-        args: rest.iter().map(|x| x.to_string()).collect(),
-        nixpkgs_version: get_nixpkgs_version(),
+fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
+    #[derive(Debug, serde::Serialize)]
+    let inputs_json = json!({
+        "args": rest.iter().map(|x| x.to_string()).collect::<Vec<String>>(),
+        "nixpkgs_version": get_nixpkgs_version(),
     })
     .to_string();
 
-    let nooope_hash = {
+    let inputs_hash = {
         use crate::crypto::digest::Digest;
         let mut hasher = crypto::sha1::Sha1::new();
-        hasher.input_str(&noope);
+        hasher.input_str(&inputs_json);
         hasher.result_str()
     };
 
-    if let Some(env) = check_cache(&nooope_hash) {
+    if let Some(env) = check_cache(&inputs_hash) {
         return env;
     } else {
-        let n = nope(rest);
+        let (env, drv) = get_shell_env(rest);
 
-        cache_write(&nooope_hash, "inputs", &noope.as_bytes().to_vec());
-        cache_write(&nooope_hash, "env", &serialize_env(&n.env));
-        cache_symlink(&nooope_hash, "drv", &n.drv);
+        cache_write(&inputs_hash, "inputs", &inputs_json.as_bytes().to_vec());
+        cache_write(&inputs_hash, "env", &serialize_env(&env));
+        cache_symlink(&inputs_hash, "drv", &drv);
         // TODO: store gcroot
         // TODO: `#! cached-nix-shell --store`
 
-        return n.env;
+        return env;
     }
 }
 
