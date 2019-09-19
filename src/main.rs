@@ -7,10 +7,14 @@ extern crate serde;
 extern crate shellwords;
 extern crate xdg;
 
+mod util;
+
 use std::ffi::{OsStr, OsString};
+use std::collections::HashMap;
 
-type EnvMap = std::collections::HashMap<std::ffi::OsString, std::ffi::OsString>;
+type EnvMap = HashMap<OsString, OsString>;
 
+/// Serialize environment variables in the same way as `env -0` does.
 fn serialize_env(env: &EnvMap) -> Vec<u8> {
     let mut vec = Vec::new();
     for (k, v) in env {
@@ -23,6 +27,7 @@ fn serialize_env(env: &EnvMap) -> Vec<u8> {
     vec
 }
 
+/// Deserealize environment variables from `env -0` format.
 fn deserealize_env(vec: Vec<u8>) -> EnvMap {
     vec.split(|&b| b == 0)
         .filter(|&var| var.len() != 0) // last var has trailing space
@@ -34,7 +39,7 @@ fn deserealize_env(vec: Vec<u8>) -> EnvMap {
                 OsStr::from_bytes(&var[pos + 1..]).to_owned(),
             )
         })
-        .collect::<std::collections::HashMap<_, _>>()
+        .collect::<HashMap<_, _>>()
 }
 
 fn get_shell_env(rest: Vec<&str>) -> (EnvMap, String) {
@@ -53,14 +58,14 @@ fn get_shell_env(rest: Vec<&str>) -> (EnvMap, String) {
         let mut env = deserealize_env(exec.stdout);
 
         static IGNORED: [&str; 7] = [
-            // Passed to pure as is.
+            // Passed by `nix-shell --pure` as is.
             // Reference: src/nix-build/nix-build.cc:100
             // "HOME", "USER", "LOGNAME", "DISPLAY", "PATH", "TERM", "IN_NIX_SHELL",
             // "TZ", "PAGER", "NIX_BUILD_SHELL", "SHLVL",
             // TODO: handle PATH
             // TODO: preserve other vars
 
-            // Added on each nix-shell invocation
+            // Added on each nix-shell invocation.
             // Reference: src/nix-build/nix-build.cc:386
             "NIX_BUILD_TOP",
             "TMPDIR",
@@ -83,7 +88,7 @@ fn get_shell_env(rest: Vec<&str>) -> (EnvMap, String) {
 
     let drv: String = {
         let exec = std::process::Command::new("nix")
-            .args(vec![std::ffi::OsStr::new("show-derivation"), env_out])
+            .args(vec![OsStr::new("show-derivation"), env_out])
             .stderr(std::process::Stdio::inherit())
             .output()
             .expect("failed to execute nix show-derivation");
@@ -194,22 +199,28 @@ fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<Str
 
     let matches_interpreter = matches.value_of("INTERPRETER").unwrap();
 
-    let n = cached_shell_env(matches_rest);
-
+    let mut env = cached_shell_env(matches_rest);
+    {
+        env.insert(OsStr::new("PATH").to_os_string(),
+            util::env_path_concat(
+                env.get(OsStr::new("PATH")),
+                std::env::var_os("PATH").as_ref(),
+            ));
+    }
+    
     {
         let mut interpreter_args = script_args;
         interpreter_args.insert(0, fname.to_string());
         let exec = std::process::Command::new(matches_interpreter)
             .args(interpreter_args)
             .env_clear()
-            .envs(&n)
+            .envs(&env)
             .status()
             .expect("failed to execute script");
     }
 }
 
 fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
-    #[derive(Debug, serde::Serialize)]
     let inputs_json = json!({
         "args": rest.iter().map(|x| x.to_string()).collect::<Vec<String>>(),
         "nixpkgs_version": get_nixpkgs_version(),
@@ -238,7 +249,7 @@ fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
     }
 }
 
-fn check_cache(hash: &str) -> Option<std::collections::HashMap<OsString, OsString>> {
+fn check_cache(hash: &str) -> Option<HashMap<OsString, OsString>> {
     let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
 
     let env_fname = xdg_dirs.find_cache_file(format!("{}.env", hash))?;
