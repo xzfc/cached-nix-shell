@@ -1,13 +1,7 @@
-extern crate clap;
-#[macro_use]
-extern crate serde_json;
-extern crate crypto;
-extern crate regex;
-extern crate serde;
-extern crate shellwords;
-extern crate xdg;
+use serde_json::json;
 
 mod util;
+mod run;
 
 use std::ffi::{OsStr, OsString};
 use std::collections::HashMap;
@@ -128,18 +122,15 @@ fn parse_script(fname: &str) -> Option<Vec<String>> {
     let f = std::fs::File::open(fname).ok()?; // File doesn't exists
     let file = std::io::BufReader::new(&f);
 
-    let mut lines = file.lines().map(|l| l.unwrap()).enumerate();
+    let mut lines = file.lines().map(|l| l.unwrap());
 
-    {
-        let (_, line) = lines.next()?; // Empty file
-        if !line.starts_with("#!") {
-            None?; // Not shebang
-        }
+    if !lines.next()?.starts_with("#!") {
+        return None; // First line isn't shebang
     }
 
     let re = regex::Regex::new(r"^#!\s*nix-shell\s+(.*)$").unwrap();
     let mut args = Vec::new();
-    for (num, line) in lines {
+    for line in lines {
         if let Some(caps) = re.captures(&line) {
             let line = caps.get(1).unwrap().as_str();
             // XXX: probably rust-shellwords isn't the same as shellwords()
@@ -228,7 +219,7 @@ fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
     .to_string();
 
     let inputs_hash = {
-        use crate::crypto::digest::Digest;
+        use crypto::digest::Digest;
         let mut hasher = crypto::sha1::Sha1::new();
         hasher.input_str(&inputs_json);
         hasher.result_str()
@@ -299,6 +290,12 @@ fn cache_symlink(hash: &str, ext: &str, target: &str) {
 }
 
 fn main() {
+    /*
+    run::run_drv(
+        "/nix/store/w3wc1w1z6gbvdn6z8yy7qpqkab4gdcrw-stdenv-linux.drv",
+        vec!["true".to_string()]
+        );
+    */
     let argv: Vec<String> = std::env::args().into_iter().collect();
 
     if argv.len() >= 2 {
