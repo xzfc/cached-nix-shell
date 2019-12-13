@@ -1,12 +1,12 @@
 use serde_json::json;
 
 mod util;
-mod run;
 
 use std::ffi::{OsStr, OsString};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+use std::io::Write;
 
-type EnvMap = HashMap<OsString, OsString>;
+type EnvMap = BTreeMap<OsString, OsString>;
 
 /// Serialize environment variables in the same way as `env -0` does.
 fn serialize_env(env: &EnvMap) -> Vec<u8> {
@@ -33,46 +33,42 @@ fn deserealize_env(vec: Vec<u8>) -> EnvMap {
                 OsStr::from_bytes(&var[pos + 1..]).to_owned(),
             )
         })
-        .collect::<HashMap<_, _>>()
+        .collect::<BTreeMap<_, _>>()
 }
 
-fn get_shell_env(rest: Vec<&str>) -> (EnvMap, String) {
+fn get_clean_env() -> EnvMap {
+        let mut clean_env = BTreeMap::new();
+        for var in vec!["NIX_PATH", "XDG_RUNTIME_DIR", "TMPDIR"] {
+            if let Some(val) = std::env::var_os(var) {
+                clean_env.insert(OsString::from(var), OsString::from(val));
+            }
+        }
+        clean_env
+}
+
+fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, String) {
     let env = {
-        let mut args = vec!["--pure", "--packages", "--run", "env -0", "--"];
+        let mut args = vec![
+            "--pure",
+            "--packages",
+            "--run", "env -0",
+            // "-vv",
+            "--"];
         args.extend(rest);
 
         let exec = std::process::Command::new("nix-shell")
             .args(args)
-            .stderr(std::process::Stdio::inherit())
+            .env_clear()
+            .envs(clean_env)
             .output()
             .expect("failed to execute nix-shell");
         if !exec.status.success() {
-            std::process::exit(1);
+            // TODO: filter out /^evaluating file/
+            std::io::stderr().write_all(&exec.stderr);
+            std::process::exit(exec.status.code().unwrap());
         }
         let mut env = deserealize_env(exec.stdout);
-
-        static IGNORED: [&str; 7] = [
-            // Passed by `nix-shell --pure` as is.
-            // Reference: src/nix-build/nix-build.cc:100
-            // "HOME", "USER", "LOGNAME", "DISPLAY", "PATH", "TERM", "IN_NIX_SHELL",
-            // "TZ", "PAGER", "NIX_BUILD_SHELL", "SHLVL",
-            // TODO: handle PATH
-            // TODO: preserve other vars
-
-            // Added on each nix-shell invocation.
-            // Reference: src/nix-build/nix-build.cc:386
-            "NIX_BUILD_TOP",
-            "TMPDIR",
-            "TEMPDIR",
-            "TMP",
-            "TEMP",
-            "NIX_STORE",
-            "NIX_BUILD_CORES",
-        ];
-
-        for i in IGNORED.iter() {
-            env.remove(OsStr::new(i));
-        }
+        env.remove(OsStr::new("PWD"));
         env
     };
 
@@ -212,11 +208,15 @@ fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<Str
 }
 
 fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
+    let clean_env = get_clean_env();
     let inputs_json = json!({
         "args": rest.iter().map(|x| x.to_string()).collect::<Vec<String>>(),
+        "env": serialize_env(&clean_env),
         "nixpkgs_version": get_nixpkgs_version(),
     })
     .to_string();
+
+    eprintln!("{}", &inputs_json);
 
     let inputs_hash = {
         use crypto::digest::Digest;
@@ -228,7 +228,7 @@ fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
     if let Some(env) = check_cache(&inputs_hash) {
         return env;
     } else {
-        let (env, drv) = get_shell_env(rest);
+        let (env, drv) = get_shell_env(rest, &clean_env);
 
         cache_write(&inputs_hash, "inputs", &inputs_json.as_bytes().to_vec());
         cache_write(&inputs_hash, "env", &serialize_env(&env));
@@ -240,7 +240,7 @@ fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
     }
 }
 
-fn check_cache(hash: &str) -> Option<HashMap<OsString, OsString>> {
+fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
     let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
 
     let env_fname = xdg_dirs.find_cache_file(format!("{}.env", hash))?;
@@ -262,7 +262,6 @@ fn check_cache(hash: &str) -> Option<HashMap<OsString, OsString>> {
 
 fn cache_write(hash: &str, ext: &str, text: &Vec<u8>) {
     let f = || -> Result<(), std::io::Error> {
-        use std::io::Write;
         let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
         let fname = xdg_dirs.place_cache_file(format!("{}.{}", hash, ext))?;
         let mut file = std::fs::File::create(fname)?;
@@ -290,12 +289,6 @@ fn cache_symlink(hash: &str, ext: &str, target: &str) {
 }
 
 fn main() {
-    /*
-    run::run_drv(
-        "/nix/store/w3wc1w1z6gbvdn6z8yy7qpqkab4gdcrw-stdenv-linux.drv",
-        vec!["true".to_string()]
-        );
-    */
     let argv: Vec<String> = std::env::args().into_iter().collect();
 
     if argv.len() >= 2 {
