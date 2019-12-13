@@ -2,9 +2,11 @@ use serde_json::json;
 
 mod util;
 
-use std::ffi::{OsStr, OsString};
 use std::collections::BTreeMap;
+use std::ffi::{OsStr, OsString};
+use std::io::Read;
 use std::io::Write;
+use tempfile::NamedTempFile;
 
 type EnvMap = BTreeMap<OsString, OsString>;
 
@@ -47,12 +49,14 @@ fn get_clean_env() -> EnvMap {
 }
 
 fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, String) {
+    let trace_file =
+        NamedTempFile::new().expect("can't create temporary file");
+
     let env = {
         let mut args = vec![
             "--pure",
             "--packages",
             "--run", "env -0",
-            // "-vv",
             "--"];
         args.extend(rest);
 
@@ -60,6 +64,8 @@ fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, String) {
             .args(args)
             .env_clear()
             .envs(clean_env)
+            .env("LD_PRELOAD", "./nix-trace/build/trace-nix.so")
+            .env("TRACE_NIX", trace_file.path())
             .output()
             .expect("failed to execute nix-shell");
         if !exec.status.success() {
@@ -75,6 +81,13 @@ fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, String) {
     let env_out = env
         .get(OsStr::new("out"))
         .expect("expected to have `out` environment variable");
+
+    let mut trace_file = trace_file.reopen().expect("can't reopen temporary file");
+    let mut trace_data = Vec::new();
+    trace_file.read_to_end(&mut trace_data);
+    std::mem::drop(trace_file);
+
+    // TODO: handle trace_data
 
     let drv: String = {
         let exec = std::process::Command::new("nix")

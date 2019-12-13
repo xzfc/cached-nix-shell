@@ -15,7 +15,7 @@
 #include <unistd.h>
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-static int log_fd = -1;
+static FILE *log_f = NULL;
 
 static int (*old__xstat)(int ver, const char *path, struct stat *buf) = NULL;
 static int (*old__xstat64)(int ver, const char *path, struct stat64 *buf) = NULL;
@@ -30,7 +30,7 @@ static DIR *(*oldopendir)(const char *name) = NULL;
 	return old##FUN(__VA_ARGS__);
 
 static void print_log(const char *path) {
-	if (log_fd == -1)
+	if (log_f == NULL)
 		return;
 
 	static const char *ignored_paths[] = {
@@ -53,7 +53,7 @@ static void print_log(const char *path) {
 			return;
 
 	pthread_mutex_lock(&mutex);
-	dprintf(log_fd, "%s%c", path, (char)0);
+	fprintf(log_f, "%s%c", path, (char)0);
 	pthread_mutex_unlock(&mutex);
 }
 
@@ -62,18 +62,16 @@ static void __attribute__((constructor)) init() {
 	// TODO: use `ld.so --preload` instead
 	unsetenv("LD_PRELOAD");
 
-	const char *fd_s = getenv("TRACE_NIX_FD");
-	if (fd_s != NULL) {
-		char *endptr = NULL;
-		long l = strtol(fd_s, &endptr, 10);
-		errno = 0;
-		if (*endptr == 0 && l >= 0 && l <= INT_MAX && fcntl(l, F_GETFD) != -1) {
-			log_fd = l;
-		} else {
-			fprintf(stderr, "trace-nix: invalid descriptor TRACE_NIX_FD=%s\n", fd_s);
+	const char *fname = getenv("TRACE_NIX");
+	if (fname != NULL) {
+		log_f = fopen(fname, "w");
+		if (log_f == NULL) {
+			fprintf(stderr, "trace-nix: can't open file %s: %s\n", fname,
+				strerror(errno));
+			errno = 0;
 		}
 	}
-	unsetenv("TRACE_NIX_FD");
+	unsetenv("TRACE_NIX");
 }
 
 int __xstat(int ver, const char *path, struct stat *buf) {

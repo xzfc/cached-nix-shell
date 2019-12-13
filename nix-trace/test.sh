@@ -2,7 +2,7 @@
 
 run() {
 	rm -f build/log
-	LD_PRELOAD=$PWD/build/trace-nix.so TRACE_NIX_FD=42 42>build/log \
+	LD_PRELOAD=$PWD/build/trace-nix.so TRACE_NIX=build/log \
 		nix-shell --run : -p -- "$@" 2>/dev/null
 }
 
