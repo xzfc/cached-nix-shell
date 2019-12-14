@@ -2,10 +2,15 @@ use serde_json::json;
 
 mod util;
 
+use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::io::Read;
-use std::io::Write;
+use std::fs::{File, read_link};
+use std::io::{Read, Write};
+use std::os::unix::ffi::OsStrExt;
+use crypto::md5::Md5;
+use crypto::sha1::Sha1;
+use crypto::digest::Digest;
 use tempfile::NamedTempFile;
 
 type EnvMap = BTreeMap<OsString, OsString>;
@@ -14,7 +19,6 @@ type EnvMap = BTreeMap<OsString, OsString>;
 fn serialize_env(env: &EnvMap) -> Vec<u8> {
     let mut vec = Vec::new();
     for (k, v) in env {
-        use std::os::unix::ffi::OsStrExt;
         vec.extend(k.as_bytes());
         vec.push(b'=');
         vec.extend(v.as_bytes());
@@ -26,9 +30,8 @@ fn serialize_env(env: &EnvMap) -> Vec<u8> {
 /// Deserealize environment variables from `env -0` format.
 fn deserealize_env(vec: Vec<u8>) -> EnvMap {
     vec.split(|&b| b == 0)
-        .filter(|&var| var.len() != 0) // last var has trailing space
+        .filter(|&var| var.len() != 0) // last entry has trailing NUL
         .map(|var| {
-            use std::os::unix::ffi::OsStrExt;
             let pos = var.iter().position(|&x| x == b'=').unwrap();
             (
                 OsStr::from_bytes(&var[0..pos]).to_owned(),
@@ -36,6 +39,67 @@ fn deserealize_env(vec: Vec<u8>) -> EnvMap {
             )
         })
         .collect::<BTreeMap<_, _>>()
+}
+
+fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
+    let items = vec.split(|&b| b == 0)
+        .filter(|&fname| fname.len() != 0) // last entry has trailing NUL
+        .tuples::<(_,_)>()
+        .collect::<BTreeMap<&[u8], &[u8]>>();
+
+    let mut tmp = OsString::new();
+
+    for (k, v) in items.iter() {
+        let fname = OsStr::from_bytes(&k[1..]);
+        let res = match k.iter().next() {
+            Some(b's') => {
+                match nix::sys::stat::lstat(fname) {
+                    Ok(_) => {
+                        match nix::fcntl::readlink(fname) {
+                            Ok(x) => {
+                                tmp = x;
+                                tmp.as_os_str()
+                            },
+                            Err(_) => OsStr::new("+"),
+                        }
+                    }
+                    Err(_) => OsStr::new("-"),
+                }
+            },
+            Some(b'f') => {
+                match File::open(fname) {
+                    Ok(mut file) => {
+                        let mut data = Vec::new();
+                        file.read_to_end(&mut data).expect("Can't read file");
+
+                        let mut digest = Md5::new();
+                        digest.input(&data);
+
+                        tmp = OsString::from(digest.result_str());
+                        tmp.as_os_str()
+                    }
+                    Err(_) => OsStr::new("-"),
+                }
+            }
+            Some(b'd') => {
+                OsStr::new("???") // TODO
+            },
+            _ => panic!("Unexpected"),
+        };
+
+        if res.as_bytes() != *v {
+            println!("{:?}: expected {:?}, got {:?}", fname, OsStr::from_bytes(v), res);
+        }
+    }
+
+    let mut result = Vec::<u8>::new();
+    for (a, b) in items {
+        result.push(0);
+        result.extend(a);
+        result.push(0);
+        result.extend(b);
+    }
+    Some(result)
 }
 
 fn get_clean_env() -> EnvMap {
@@ -48,7 +112,7 @@ fn get_clean_env() -> EnvMap {
         clean_env
 }
 
-fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, String) {
+fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, Option<Vec<u8>>, String) {
     let trace_file =
         NamedTempFile::new().expect("can't create temporary file");
 
@@ -62,6 +126,7 @@ fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, String) {
 
         let exec = std::process::Command::new("nix-shell")
             .args(args)
+            .stderr(std::process::Stdio::inherit())
             .env_clear()
             .envs(clean_env)
             .env("LD_PRELOAD", "./nix-trace/build/trace-nix.so")
@@ -69,8 +134,6 @@ fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, String) {
             .output()
             .expect("failed to execute nix-shell");
         if !exec.status.success() {
-            // TODO: filter out /^evaluating file/
-            std::io::stderr().write_all(&exec.stderr);
             std::process::exit(exec.status.code().unwrap());
         }
         let mut env = deserealize_env(exec.stdout);
@@ -85,9 +148,8 @@ fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, String) {
     let mut trace_file = trace_file.reopen().expect("can't reopen temporary file");
     let mut trace_data = Vec::new();
     trace_file.read_to_end(&mut trace_data);
+    let trace = process_trace(trace_data);
     std::mem::drop(trace_file);
-
-    // TODO: handle trace_data
 
     let drv: String = {
         let exec = std::process::Command::new("nix")
@@ -107,20 +169,7 @@ fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, String) {
         drv.clone()
     };
 
-    (env, drv)
-}
-
-fn get_nixpkgs_version() -> String {
-    let exec = std::process::Command::new("nix-instantiate")
-        .args(vec!["--find-file", "nixpkgs"])
-        .stderr(std::process::Stdio::inherit())
-        .output()
-        .expect("failed to execute nix-instantiate");
-    if !exec.status.success() {
-        std::process::exit(1);
-    }
-    let output = String::from_utf8(exec.stdout).expect("failed to decode");
-    format!("{}/.version-suffix", output)
+    (env, trace, drv)
 }
 
 // Parse script in the same way as nix-shell does.
@@ -128,7 +177,7 @@ fn get_nixpkgs_version() -> String {
 fn parse_script(fname: &str) -> Option<Vec<String>> {
     use std::io::BufRead;
 
-    let f = std::fs::File::open(fname).ok()?; // File doesn't exists
+    let f = File::open(fname).ok()?; // File doesn't exists
     let file = std::io::BufReader::new(&f);
 
     let mut lines = file.lines().map(|l| l.unwrap());
@@ -225,15 +274,11 @@ fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
     let inputs_json = json!({
         "args": rest.iter().map(|x| x.to_string()).collect::<Vec<String>>(),
         "env": serialize_env(&clean_env),
-        "nixpkgs_version": get_nixpkgs_version(),
     })
     .to_string();
 
-    eprintln!("{}", &inputs_json);
-
     let inputs_hash = {
-        use crypto::digest::Digest;
-        let mut hasher = crypto::sha1::Sha1::new();
+        let mut hasher = Sha1::new();
         hasher.input_str(&inputs_json);
         hasher.result_str()
     };
@@ -241,10 +286,14 @@ fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
     if let Some(env) = check_cache(&inputs_hash) {
         return env;
     } else {
-        let (env, drv) = get_shell_env(rest, &clean_env);
+        let (env, trace, drv) = get_shell_env(rest, &clean_env);
+        eprintln!("cached-nix-shell: updating cache");
 
         cache_write(&inputs_hash, "inputs", &inputs_json.as_bytes().to_vec());
         cache_write(&inputs_hash, "env", &serialize_env(&env));
+        if let Some(trace) = trace {
+            cache_write(&inputs_hash, "trace", &trace);
+        }
         cache_symlink(&inputs_hash, "drv", &drv);
         // TODO: store gcroot
         // TODO: `#! cached-nix-shell --store`
@@ -258,17 +307,20 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
 
     let env_fname = xdg_dirs.find_cache_file(format!("{}.env", hash))?;
     let drv_fname = xdg_dirs.find_cache_file(format!("{}.drv", hash))?;
+    let trace_fname = xdg_dirs.find_cache_file(format!("{}.trace", hash))?;
 
-    let mut env_file = std::fs::File::open(env_fname).unwrap();
+    let mut env_file = File::open(env_fname).unwrap();
     let mut env_buf = Vec::<u8>::new();
-    {
-        use std::io::Read;
-        env_file.read_to_end(&mut env_buf).unwrap();
-    }
+    env_file.read_to_end(&mut env_buf).unwrap();
     let env = deserealize_env(env_buf);
 
-    let drv_store_fname = std::fs::read_link(drv_fname).ok()?;
+    let drv_store_fname = read_link(drv_fname).ok()?;
     std::fs::metadata(drv_store_fname).ok()?;
+
+    let mut trace_file = File::open(trace_fname).unwrap();
+    let mut trace_buf = Vec::<u8>::new();
+    trace_file.read_to_end(&mut trace_buf).unwrap();
+    let trace = process_trace(trace_buf)?;
 
     return Some(env);
 }
@@ -277,7 +329,7 @@ fn cache_write(hash: &str, ext: &str, text: &Vec<u8>) {
     let f = || -> Result<(), std::io::Error> {
         let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
         let fname = xdg_dirs.place_cache_file(format!("{}.{}", hash, ext))?;
-        let mut file = std::fs::File::create(fname)?;
+        let mut file = File::create(fname)?;
         file.write_all(text)?;
         Ok(())
     };
