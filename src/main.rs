@@ -2,15 +2,15 @@ use serde_json::json;
 
 mod util;
 
+use crypto::digest::Digest;
+use crypto::md5::Md5;
+use crypto::sha1::Sha1;
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::{File, read_link};
+use std::fs::{read_link, File};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
-use crypto::md5::Md5;
-use crypto::sha1::Sha1;
-use crypto::digest::Digest;
 use tempfile::NamedTempFile;
 
 type EnvMap = BTreeMap<OsString, OsString>;
@@ -42,9 +42,10 @@ fn deserealize_env(vec: Vec<u8>) -> EnvMap {
 }
 
 fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
-    let items = vec.split(|&b| b == 0)
+    let items = vec
+        .split(|&b| b == 0)
         .filter(|&fname| fname.len() != 0) // last entry has trailing NUL
-        .tuples::<(_,_)>()
+        .tuples::<(_, _)>()
         .collect::<BTreeMap<&[u8], &[u8]>>();
 
     let mut tmp = OsString::new();
@@ -52,43 +53,42 @@ fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
     for (k, v) in items.iter() {
         let fname = OsStr::from_bytes(&k[1..]);
         let res = match k.iter().next() {
-            Some(b's') => {
-                match nix::sys::stat::lstat(fname) {
-                    Ok(_) => {
-                        match nix::fcntl::readlink(fname) {
-                            Ok(x) => {
-                                tmp = x;
-                                tmp.as_os_str()
-                            },
-                            Err(_) => OsStr::new("+"),
-                        }
-                    }
-                    Err(_) => OsStr::new("-"),
-                }
-            },
-            Some(b'f') => {
-                match File::open(fname) {
-                    Ok(mut file) => {
-                        let mut data = Vec::new();
-                        file.read_to_end(&mut data).expect("Can't read file");
-
-                        let mut digest = Md5::new();
-                        digest.input(&data);
-
-                        tmp = OsString::from(digest.result_str());
+            Some(b's') => match nix::sys::stat::lstat(fname) {
+                Ok(_) => match nix::fcntl::readlink(fname) {
+                    Ok(x) => {
+                        tmp = x;
                         tmp.as_os_str()
                     }
-                    Err(_) => OsStr::new("-"),
+                    Err(_) => OsStr::new("+"),
+                },
+                Err(_) => OsStr::new("-"),
+            },
+            Some(b'f') => match File::open(fname) {
+                Ok(mut file) => {
+                    let mut data = Vec::new();
+                    file.read_to_end(&mut data).expect("Can't read file");
+
+                    let mut digest = Md5::new();
+                    digest.input(&data);
+
+                    tmp = OsString::from(digest.result_str());
+                    tmp.as_os_str()
                 }
-            }
+                Err(_) => OsStr::new("-"),
+            },
             Some(b'd') => {
                 OsStr::new("???") // TODO
-            },
+            }
             _ => panic!("Unexpected"),
         };
 
         if res.as_bytes() != *v {
-            println!("{:?}: expected {:?}, got {:?}", fname, OsStr::from_bytes(v), res);
+            println!(
+                "{:?}: expected {:?}, got {:?}",
+                fname,
+                OsStr::from_bytes(v),
+                res
+            );
         }
     }
 
@@ -103,25 +103,20 @@ fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
 }
 
 fn get_clean_env() -> EnvMap {
-        let mut clean_env = BTreeMap::new();
-        for var in vec!["NIX_PATH", "XDG_RUNTIME_DIR", "TMPDIR"] {
-            if let Some(val) = std::env::var_os(var) {
-                clean_env.insert(OsString::from(var), OsString::from(val));
-            }
+    let mut clean_env = BTreeMap::new();
+    for var in vec!["NIX_PATH", "XDG_RUNTIME_DIR", "TMPDIR"] {
+        if let Some(val) = std::env::var_os(var) {
+            clean_env.insert(OsString::from(var), OsString::from(val));
         }
-        clean_env
+    }
+    clean_env
 }
 
 fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, Option<Vec<u8>>, String) {
-    let trace_file =
-        NamedTempFile::new().expect("can't create temporary file");
+    let trace_file = NamedTempFile::new().expect("can't create temporary file");
 
     let env = {
-        let mut args = vec![
-            "--pure",
-            "--packages",
-            "--run", "env -0",
-            "--"];
+        let mut args = vec!["--pure", "--packages", "--run", "env -0", "--"];
         args.extend(rest);
 
         let exec = std::process::Command::new("nix-shell")
@@ -147,7 +142,7 @@ fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, Option<Vec<u8>
 
     let mut trace_file = trace_file.reopen().expect("can't reopen temporary file");
     let mut trace_data = Vec::new();
-    trace_file.read_to_end(&mut trace_data);
+    trace_file.read_to_end(&mut trace_data).expect("Can't read trace file");
     let trace = process_trace(trace_data);
     std::mem::drop(trace_file);
 
@@ -250,13 +245,15 @@ fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<Str
 
     let mut env = cached_shell_env(matches_rest);
     {
-        env.insert(OsStr::new("PATH").to_os_string(),
+        env.insert(
+            OsStr::new("PATH").to_os_string(),
             util::env_path_concat(
                 env.get(OsStr::new("PATH")),
                 std::env::var_os("PATH").as_ref(),
-            ));
+            ),
+        );
     }
-    
+
     {
         let mut interpreter_args = script_args;
         interpreter_args.insert(0, fname.to_string());
@@ -320,7 +317,7 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
     let mut trace_file = File::open(trace_fname).unwrap();
     let mut trace_buf = Vec::<u8>::new();
     trace_file.read_to_end(&mut trace_buf).unwrap();
-    let trace = process_trace(trace_buf)?;
+    process_trace(trace_buf)?;
 
     return Some(env);
 }
