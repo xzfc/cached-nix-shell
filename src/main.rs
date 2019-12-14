@@ -11,6 +11,8 @@ use std::ffi::{OsStr, OsString};
 use std::fs::{read_link, File};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::process::CommandExt;
+use std::process::Command;
 use tempfile::NamedTempFile;
 
 type EnvMap = BTreeMap<OsString, OsString>;
@@ -89,6 +91,7 @@ fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
                 OsStr::from_bytes(v),
                 res
             );
+            return None;
         }
     }
 
@@ -117,7 +120,7 @@ fn get_shell_env(rest: Vec<&str>, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<
 
     let trace_file = NamedTempFile::new().expect("can't create temporary file");
 
-    let trace_nix_so = (||
+    let trace_nix_so = (|| {
         if option_env!("IN_NIX_SHELL") == Some("impure") {
             std::env::current_exe()
                 .ok()?
@@ -132,11 +135,15 @@ fn get_shell_env(rest: Vec<&str>, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<
                 .join("../lib/trace-nix.so")
                 .canonicalize()
                 .ok()
-        })();
+        }
+    })();
 
     if let Some(trace_nix_so) = trace_nix_so {
         clean_env.insert(OsString::from("LD_PRELOAD"), OsString::from(trace_nix_so));
-        clean_env.insert(OsString::from("TRACE_NIX"), OsString::from(trace_file.path()));
+        clean_env.insert(
+            OsString::from("TRACE_NIX"),
+            OsString::from(trace_file.path()),
+        );
     } else {
         eprintln!("cached-nix-shell: couldn't find trace-nix.so");
     }
@@ -145,7 +152,7 @@ fn get_shell_env(rest: Vec<&str>, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<
         let mut args = vec!["--pure", "--packages", "--run", "env -0", "--"];
         args.extend(rest);
 
-        let exec = std::process::Command::new("nix-shell")
+        let exec = Command::new("nix-shell")
             .args(args)
             .stderr(std::process::Stdio::inherit())
             .env_clear()
@@ -166,12 +173,14 @@ fn get_shell_env(rest: Vec<&str>, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<
 
     let mut trace_file = trace_file.reopen().expect("can't reopen temporary file");
     let mut trace_data = Vec::new();
-    trace_file.read_to_end(&mut trace_data).expect("Can't read trace file");
+    trace_file
+        .read_to_end(&mut trace_data)
+        .expect("Can't read trace file");
     let trace = process_trace(trace_data);
     std::mem::drop(trace_file);
 
     let drv: String = {
-        let exec = std::process::Command::new("nix")
+        let exec = Command::new("nix")
             .args(vec![OsStr::new("show-derivation"), env_out])
             .stderr(std::process::Stdio::inherit())
             .output()
@@ -233,7 +242,7 @@ fn clap_app() -> clap::App<'static, 'static> {
         .arg(
             clap::Arg::with_name("PACKAGES")
                 .short("p")
-                .long("--packages"),
+                .long("packages"),
         )
         .arg(
             clap::Arg::with_name("COMMAND")
@@ -249,7 +258,7 @@ fn clap_app_shebang() -> clap::App<'static, 'static> {
         .arg(
             clap::Arg::with_name("PACKAGES")
                 .short("p")
-                .long("--packages"),
+                .long("packages"),
         )
         .arg(
             clap::Arg::with_name("INTERPRETER")
@@ -269,16 +278,15 @@ fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<Str
 
     let env = cached_shell_env(matches_rest);
 
-    {
-        let mut interpreter_args = script_args;
-        interpreter_args.insert(0, fname.to_string());
-        let exec = std::process::Command::new(matches_interpreter)
-            .args(interpreter_args)
-            .env_clear()
-            .envs(&env)
-            .status()
-            .expect("failed to execute script");
-    }
+    let mut interpreter_args = script_args;
+    interpreter_args.insert(0, fname.to_string());
+    let exec = Command::new(matches_interpreter)
+        .args(interpreter_args)
+        .env_clear()
+        .envs(&env)
+        .exec();
+    eprintln!("cached-nix-shell: couldn't run: {:?}", exec);
+    unreachable!()
 }
 
 fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
@@ -390,14 +398,15 @@ fn main() {
 
     let matches = clap_app().get_matches();
     let matches_rest = matches.values_of("REST").unwrap().collect::<Vec<&str>>();
-    let matches_command = matches.value_of("COMMAND").unwrap();
+    let matches_command = matches.value_of("COMMAND").unwrap_or("bash");
 
     let env = cached_shell_env(matches_rest);
 
-    std::process::Command::new("sh")
+    let exec = Command::new("bash")
         .args(vec!["-c", matches_command])
         .env_clear()
         .envs(&env)
-        .status()
-        .expect("failed to execute script");
+        .exec();
+    eprintln!("cached-nix-shell: couldn't run bash: {:?}", exec);
+    unreachable!()
 }
