@@ -8,4 +8,4 @@ test: build/trace-nix.so
 	./test.sh
 
 clean:
-	rm -rf build
+	rm -rf build test-tmp
