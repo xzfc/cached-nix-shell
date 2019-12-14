@@ -16,7 +16,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 static FILE *log_f = NULL;
 
 static int (*real___lxstat)(int ver, const char *path, struct stat *buf) = NULL;
@@ -27,10 +27,13 @@ static DIR *(*real_opendir)(const char *name) = NULL;
 	(real_##FUN == NULL ? (real_##FUN = dlsym(RTLD_NEXT, #FUN)) : real_##FUN)
 
 // Predeclarations
-static void dir_md5sum(unsigned char[static 16], DIR *);
+
+static void dir_md5sum(char [static 33], DIR *);
 static int enable(const char *);
-static void file_md5sum(unsigned char[static 16], int);
-static void print_log(char, const char *);
+static void file_md5sum(char [static 33], int);
+static void md5_convert_digest(char [static 33], const unsigned char [static 16]);
+static void print_log_old(char, const char *);
+static void print_log(char, const char *, const char *);
 static int strcmp_qsort(const void *, const void *);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,22 +63,23 @@ int __lxstat(int ver, const char *path, struct stat *sb) {
 
 	if (enable(path)) {
 		if (result != 0) {
-			print_log('s', path);
+			print_log('s', path, "-");
 		} else if (S_ISLNK(sb->st_mode)) {
 			pthread_mutex_lock(&mutex);
 			if (buf_len < sb->st_size + 1) {
 				buf_len = sb->st_size + 1;
 				buf = realloc(buf, buf_len);
+				if (buf == NULL)
+					abort();
 			}
 			ssize_t link_len = readlink(path, buf, sb->st_size);
 			if (link_len < 0 || link_len != sb->st_size)
 				abort();
 			buf[sb->st_size] = 0;
-			fprintf(log_f, "L%s%c%s%c", path, 0, buf, 0);
-			fflush(log_f);
+			print_log('s', path, buf);
 			pthread_mutex_unlock(&mutex);
 		} else {
-			print_log('l', path);
+			print_log('s', path, "+");
 		}
 	}
 	return result;
@@ -91,18 +95,11 @@ int open(const char *path, int flags, ...) {
 
 	if (flags == (O_RDONLY|O_CLOEXEC) && enable(path)) {
 		if (fd == -1) {
-			print_log('f', path);
+			print_log('f', path, "-");
 		} else {
-			unsigned char digest[16];
+			char digest[33];
 			file_md5sum(digest, fd);
-
-			pthread_mutex_lock(&mutex);
-			fprintf(log_f, "F%s%c", path, (char)0);
-			for (int i = 0; i < 16; i++)
-				fprintf(log_f, "%02x", (unsigned)digest[i]);
-			fprintf(log_f, "%c", 0);
-			fflush(log_f);
-			pthread_mutex_unlock(&mutex);
+			print_log('f', path, digest);
 		}
 	}
 
@@ -113,18 +110,11 @@ DIR *opendir(const char *path) {
 	DIR *dirp = REAL(opendir)(path);
 	if (enable(path)) {
 		if (dirp == NULL) {
-			print_log('d', path);
+			print_log('d', path, "-");
 		} else {
-			unsigned char digest[16];
+			char digest[33];
 			dir_md5sum(digest, dirp);
-
-			pthread_mutex_lock(&mutex);
-			fprintf(log_f, "D%s%c", path, (char)0);
-			for (int i = 0; i < 16; i++)
-				fprintf(log_f, "%02x", (unsigned)digest[i]);
-			fprintf(log_f, "%c", 0);
-			fflush(log_f);
-			pthread_mutex_unlock(&mutex);
+			print_log('d', path, digest);
 		}
 	}
 	return dirp;
@@ -158,7 +148,7 @@ static int enable(const char *path) {
 	return 1;
 }
 
-static void print_log(char mode, const char *path) {
+static void print_log_old(char mode, const char *path) {
 	if (!enable(path))
 		return;
 	pthread_mutex_lock(&mutex);
@@ -167,7 +157,14 @@ static void print_log(char mode, const char *path) {
 	pthread_mutex_unlock(&mutex);
 }
 
-static void file_md5sum(unsigned char digest[static 16], int fd) {
+static void print_log(char op, const char *path, const char *result) {
+	pthread_mutex_lock(&mutex);
+	fprintf(log_f, "%c%s%c%s%c", op, path, (char)0, result, (char)0);
+	fflush(log_f);
+	pthread_mutex_unlock(&mutex);
+}
+
+static void file_md5sum(char digest_s[static 33], int fd) {
 	struct stat stat_;
 	int rc = fstat(fd, &stat_);
 	if (rc != 0)
@@ -176,7 +173,11 @@ static void file_md5sum(unsigned char digest[static 16], int fd) {
 		mmap(NULL, stat_.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (mmaped == NULL)
 		abort();
-	MD5(mmaped, stat_.st_size, digest);
+
+	unsigned char digest_b[16];
+	MD5(mmaped, stat_.st_size, digest_b);
+	md5_convert_digest(digest_s, digest_b);
+
 	munmap(NULL, stat_.st_size);
 }
 
@@ -184,7 +185,7 @@ static int strcmp_qsort(const void *a, const void *b) {
 	return strcmp(*(const char**)a, *(const char **)b);
 }
 
-static void dir_md5sum(unsigned char digest[static 16], DIR *dirp) {
+static void dir_md5sum(char digest_s[static 33], DIR *dirp) {
 	// An dynamically growing array of strings
 	size_t entries_total = 32, n = 0;
 	char **entries = calloc(entries_total, sizeof(char*));
@@ -217,11 +218,13 @@ static void dir_md5sum(unsigned char digest[static 16], DIR *dirp) {
 	qsort(entries, n, sizeof(char*), strcmp_qsort);
 
 	// Calculate hash
+	unsigned char digest_b[16];
 	MD5_CTX ctx;
 	MD5_Init(&ctx);
 	for (int i = 0; i < n; i++)
 		MD5_Update(&ctx, entries[i], strlen(entries[i])+1);
-	MD5_Final(digest, &ctx);
+	MD5_Final(digest_b, &ctx);
+	md5_convert_digest(digest_s, digest_b);
 
 	// Memory cleanup
 	for (int i = 0; i < n; i++)
@@ -230,4 +233,9 @@ static void dir_md5sum(unsigned char digest[static 16], DIR *dirp) {
 
 	// Revert dirp into initial state
 	rewinddir(dirp);
+}
+
+static void md5_convert_digest(char digest_s[static 33], const unsigned char digest_b[static 16]) {
+	for (int i = 0; i < 16; i++)
+		sprintf(digest_s + i*2, "%02x", (unsigned)digest_b[i]);
 }
