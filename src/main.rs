@@ -113,6 +113,8 @@ fn get_clean_env() -> EnvMap {
 }
 
 fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, Option<Vec<u8>>, String) {
+    eprintln!("cached-nix-shell: updating cache");
+
     let trace_file = NamedTempFile::new().expect("can't create temporary file");
 
     let env = {
@@ -212,8 +214,8 @@ fn clap_app() -> clap::App<'static, 'static> {
                 .long("--packages"),
         )
         .arg(
-            clap::Arg::with_name("INTERPRETER")
-                .short("i")
+            clap::Arg::with_name("COMMAND")
+                .long("run")
                 .takes_value(true),
         )
         .arg(clap::Arg::with_name("REST").multiple(true))
@@ -243,16 +245,7 @@ fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<Str
 
     let matches_interpreter = matches.value_of("INTERPRETER").unwrap();
 
-    let mut env = cached_shell_env(matches_rest);
-    {
-        env.insert(
-            OsStr::new("PATH").to_os_string(),
-            util::env_path_concat(
-                env.get(OsStr::new("PATH")),
-                std::env::var_os("PATH").as_ref(),
-            ),
-        );
-    }
+    let env = cached_shell_env(matches_rest);
 
     {
         let mut interpreter_args = script_args;
@@ -280,11 +273,10 @@ fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
         hasher.result_str()
     };
 
-    if let Some(env) = check_cache(&inputs_hash) {
-        return env;
+    let mut env = if let Some(env) = check_cache(&inputs_hash) {
+        env
     } else {
         let (env, trace, drv) = get_shell_env(rest, &clean_env);
-        eprintln!("cached-nix-shell: updating cache");
 
         cache_write(&inputs_hash, "inputs", &inputs_json.as_bytes().to_vec());
         cache_write(&inputs_hash, "env", &serialize_env(&env));
@@ -295,8 +287,17 @@ fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
         // TODO: store gcroot
         // TODO: `#! cached-nix-shell --store`
 
-        return env;
-    }
+        env
+    };
+
+    env.insert(
+        OsStr::new("PATH").to_os_string(),
+        util::env_path_concat(
+            env.get(OsStr::new("PATH")),
+            std::env::var_os("PATH").as_ref(),
+        ),
+    );
+    env
 }
 
 fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
@@ -366,4 +367,15 @@ fn main() {
     }
 
     let matches = clap_app().get_matches();
+    let matches_rest = matches.values_of("REST").unwrap().collect::<Vec<&str>>();
+    let matches_command = matches.value_of("COMMAND").unwrap();
+
+    let env = cached_shell_env(matches_rest);
+
+    std::process::Command::new("sh")
+        .args(vec!["-c", matches_command])
+        .env_clear()
+        .envs(&env)
+        .status()
+        .expect("failed to execute script");
 }
