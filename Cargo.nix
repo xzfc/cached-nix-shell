@@ -16,17 +16,22 @@ rec {
       src = exclude [ ".git" "target" ] ./.;
       dependencies = mapFeatures features ([
         (cratesIO.crates."clap"."${deps."cached_nix_shell"."0.1.0"."clap"}" deps)
+        (cratesIO.crates."itertools"."${deps."cached_nix_shell"."0.1.0"."itertools"}" deps)
+        (cratesIO.crates."nix"."${deps."cached_nix_shell"."0.1.0"."nix"}" deps)
         (cratesIO.crates."regex"."${deps."cached_nix_shell"."0.1.0"."regex"}" deps)
         (cratesIO.crates."rust_crypto"."${deps."cached_nix_shell"."0.1.0"."rust_crypto"}" deps)
         (cratesIO.crates."serde"."${deps."cached_nix_shell"."0.1.0"."serde"}" deps)
         (cratesIO.crates."serde_json"."${deps."cached_nix_shell"."0.1.0"."serde_json"}" deps)
         (cratesIO.crates."shellwords"."${deps."cached_nix_shell"."0.1.0"."shellwords"}" deps)
+        (cratesIO.crates."tempfile"."${deps."cached_nix_shell"."0.1.0"."tempfile"}" deps)
         (cratesIO.crates."xdg"."${deps."cached_nix_shell"."0.1.0"."xdg"}" deps)
       ]);
     };
     features_.cached_nix_shell."0.1.0" = deps: f: updateFeatures f (rec {
       cached_nix_shell."0.1.0".default = (f.cached_nix_shell."0.1.0".default or true);
       clap."${deps.cached_nix_shell."0.1.0".clap}".default = true;
+      itertools."${deps.cached_nix_shell."0.1.0".itertools}".default = true;
+      nix."${deps.cached_nix_shell."0.1.0".nix}".default = true;
       regex."${deps.cached_nix_shell."0.1.0".regex}".default = true;
       rust_crypto."${deps.cached_nix_shell."0.1.0".rust_crypto}".default = true;
       serde = fold recursiveUpdate {} [
@@ -35,14 +40,18 @@ rec {
       ];
       serde_json."${deps.cached_nix_shell."0.1.0".serde_json}".default = true;
       shellwords."${deps.cached_nix_shell."0.1.0".shellwords}".default = true;
+      tempfile."${deps.cached_nix_shell."0.1.0".tempfile}".default = true;
       xdg."${deps.cached_nix_shell."0.1.0".xdg}".default = true;
     }) [
       (cratesIO.features_.clap."${deps."cached_nix_shell"."0.1.0"."clap"}" deps)
+      (cratesIO.features_.itertools."${deps."cached_nix_shell"."0.1.0"."itertools"}" deps)
+      (cratesIO.features_.nix."${deps."cached_nix_shell"."0.1.0"."nix"}" deps)
       (cratesIO.features_.regex."${deps."cached_nix_shell"."0.1.0"."regex"}" deps)
       (cratesIO.features_.rust_crypto."${deps."cached_nix_shell"."0.1.0"."rust_crypto"}" deps)
       (cratesIO.features_.serde."${deps."cached_nix_shell"."0.1.0"."serde"}" deps)
       (cratesIO.features_.serde_json."${deps."cached_nix_shell"."0.1.0"."serde_json"}" deps)
       (cratesIO.features_.shellwords."${deps."cached_nix_shell"."0.1.0"."shellwords"}" deps)
+      (cratesIO.features_.tempfile."${deps."cached_nix_shell"."0.1.0"."tempfile"}" deps)
       (cratesIO.features_.xdg."${deps."cached_nix_shell"."0.1.0"."xdg"}" deps)
     ];
 
@@ -60,55 +69,95 @@ rec {
     winapi = "0.3.8";
   };
   deps.atty."0.2.13" = {
-    libc = "0.2.62";
+    libc = "0.2.66";
     winapi = "0.3.8";
   };
-  deps.bitflags."1.1.0" = {};
+  deps.bitflags."1.2.1" = {};
+  deps.c2_chacha."0.2.3" = {
+    ppv_lite86 = "0.2.6";
+  };
   deps.cached_nix_shell."0.1.0" = {
     clap = "2.33.0";
+    itertools = "0.8.2";
+    nix = "0.16.0";
     regex = "1.3.1";
     rust_crypto = "0.2.36";
-    serde = "1.0.101";
-    serde_json = "1.0.40";
+    serde = "1.0.103";
+    serde_json = "1.0.44";
     shellwords = "1.0.0";
+    tempfile = "3.1.0";
     xdg = "2.2.0";
   };
+  deps.cc."1.0.48" = {};
+  deps.cfg_if."0.1.10" = {};
   deps.clap."2.33.0" = {
     atty = "0.2.13";
-    bitflags = "1.1.0";
+    bitflags = "1.2.1";
     strsim = "0.8.0";
     textwrap = "0.11.0";
-    unicode_width = "0.1.6";
+    unicode_width = "0.1.7";
     vec_map = "0.8.1";
     ansi_term = "0.11.0";
   };
+  deps.either."1.5.3" = {};
   deps.fuchsia_cprng."0.1.1" = {};
   deps.gcc."0.3.55" = {};
+  deps.getrandom."0.1.13" = {
+    cfg_if = "0.1.10";
+    wasi = "0.7.0";
+    libc = "0.2.66";
+  };
+  deps.itertools."0.8.2" = {
+    either = "1.5.3";
+  };
   deps.itoa."0.4.4" = {};
   deps.lazy_static."1.4.0" = {};
-  deps.libc."0.2.62" = {};
+  deps.libc."0.2.66" = {};
   deps.memchr."2.2.1" = {};
-  deps.proc_macro2."1.0.3" = {
+  deps.nix."0.16.0" = {
+    bitflags = "1.2.1";
+    cfg_if = "0.1.10";
+    libc = "0.2.66";
+    void = "1.0.2";
+  };
+  deps.ppv_lite86."0.2.6" = {};
+  deps.proc_macro2."1.0.6" = {
     unicode_xid = "0.2.0";
   };
   deps.quote."1.0.2" = {
-    proc_macro2 = "1.0.3";
+    proc_macro2 = "1.0.6";
   };
   deps.rand."0.3.23" = {
-    libc = "0.2.62";
+    libc = "0.2.66";
     rand = "0.4.6";
   };
   deps.rand."0.4.6" = {
     rand_core = "0.3.1";
     rdrand = "0.4.0";
     fuchsia_cprng = "0.1.1";
-    libc = "0.2.62";
+    libc = "0.2.66";
     winapi = "0.3.8";
+  };
+  deps.rand."0.7.2" = {
+    rand_core = "0.5.1";
+    rand_chacha = "0.2.1";
+    rand_hc = "0.2.0";
+    libc = "0.2.66";
+  };
+  deps.rand_chacha."0.2.1" = {
+    c2_chacha = "0.2.3";
+    rand_core = "0.5.1";
   };
   deps.rand_core."0.3.1" = {
     rand_core = "0.4.2";
   };
   deps.rand_core."0.4.2" = {};
+  deps.rand_core."0.5.1" = {
+    getrandom = "0.1.13";
+  };
+  deps.rand_hc."0.2.0" = {
+    rand_core = "0.5.1";
+  };
   deps.rdrand."0.4.0" = {
     rand_core = "0.3.1";
   };
@@ -120,52 +169,65 @@ rec {
     thread_local = "0.3.6";
   };
   deps.regex_syntax."0.6.12" = {};
+  deps.remove_dir_all."0.5.2" = {
+    winapi = "0.3.8";
+  };
   deps.rust_crypto."0.2.36" = {
-    libc = "0.2.62";
+    libc = "0.2.66";
     rand = "0.3.23";
     rustc_serialize = "0.3.24";
     time = "0.1.42";
     gcc = "0.3.55";
   };
   deps.rustc_serialize."0.3.24" = {};
-  deps.ryu."1.0.0" = {};
-  deps.serde."1.0.101" = {
-    serde_derive = "1.0.101";
+  deps.ryu."1.0.2" = {};
+  deps.serde."1.0.103" = {
+    serde_derive = "1.0.103";
   };
-  deps.serde_derive."1.0.101" = {
-    proc_macro2 = "1.0.3";
+  deps.serde_derive."1.0.103" = {
+    proc_macro2 = "1.0.6";
     quote = "1.0.2";
-    syn = "1.0.5";
+    syn = "1.0.11";
   };
-  deps.serde_json."1.0.40" = {
+  deps.serde_json."1.0.44" = {
     itoa = "0.4.4";
-    ryu = "1.0.0";
-    serde = "1.0.101";
+    ryu = "1.0.2";
+    serde = "1.0.103";
   };
   deps.shellwords."1.0.0" = {
     lazy_static = "1.4.0";
     regex = "1.3.1";
   };
   deps.strsim."0.8.0" = {};
-  deps.syn."1.0.5" = {
-    proc_macro2 = "1.0.3";
+  deps.syn."1.0.11" = {
+    proc_macro2 = "1.0.6";
     quote = "1.0.2";
     unicode_xid = "0.2.0";
   };
+  deps.tempfile."3.1.0" = {
+    cfg_if = "0.1.10";
+    rand = "0.7.2";
+    remove_dir_all = "0.5.2";
+    redox_syscall = "0.1.56";
+    libc = "0.2.66";
+    winapi = "0.3.8";
+  };
   deps.textwrap."0.11.0" = {
-    unicode_width = "0.1.6";
+    unicode_width = "0.1.7";
   };
   deps.thread_local."0.3.6" = {
     lazy_static = "1.4.0";
   };
   deps.time."0.1.42" = {
-    libc = "0.2.62";
+    libc = "0.2.66";
     redox_syscall = "0.1.56";
     winapi = "0.3.8";
   };
-  deps.unicode_width."0.1.6" = {};
+  deps.unicode_width."0.1.7" = {};
   deps.unicode_xid."0.2.0" = {};
   deps.vec_map."0.8.1" = {};
+  deps.void."1.0.2" = {};
+  deps.wasi."0.7.0" = {};
   deps.winapi."0.3.8" = {
     winapi_i686_pc_windows_gnu = "0.4.0";
     winapi_x86_64_pc_windows_gnu = "0.4.0";

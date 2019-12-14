@@ -112,10 +112,34 @@ fn get_clean_env() -> EnvMap {
     clean_env
 }
 
-fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, Option<Vec<u8>>, String) {
+fn get_shell_env(rest: Vec<&str>, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<u8>>, String) {
     eprintln!("cached-nix-shell: updating cache");
 
     let trace_file = NamedTempFile::new().expect("can't create temporary file");
+
+    let trace_nix_so = (||
+        if option_env!("IN_NIX_SHELL") == Some("impure") {
+            std::env::current_exe()
+                .ok()?
+                .parent()?
+                .join("../../nix-trace/build/trace-nix.so")
+                .canonicalize()
+                .ok()
+        } else {
+            std::env::current_exe()
+                .ok()?
+                .parent()?
+                .join("../lib/trace-nix.so")
+                .canonicalize()
+                .ok()
+        })();
+
+    if let Some(trace_nix_so) = trace_nix_so {
+        clean_env.insert(OsString::from("LD_PRELOAD"), OsString::from(trace_nix_so));
+        clean_env.insert(OsString::from("TRACE_NIX"), OsString::from(trace_file.path()));
+    } else {
+        eprintln!("cached-nix-shell: couldn't find trace-nix.so");
+    }
 
     let env = {
         let mut args = vec!["--pure", "--packages", "--run", "env -0", "--"];
@@ -126,8 +150,6 @@ fn get_shell_env(rest: Vec<&str>, clean_env: &EnvMap) -> (EnvMap, Option<Vec<u8>
             .stderr(std::process::Stdio::inherit())
             .env_clear()
             .envs(clean_env)
-            .env("LD_PRELOAD", "./nix-trace/build/trace-nix.so")
-            .env("TRACE_NIX", trace_file.path())
             .output()
             .expect("failed to execute nix-shell");
         if !exec.status.success() {
@@ -276,7 +298,7 @@ fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
     let mut env = if let Some(env) = check_cache(&inputs_hash) {
         env
     } else {
-        let (env, trace, drv) = get_shell_env(rest, &clean_env);
+        let (env, trace, drv) = get_shell_env(rest, clean_env);
 
         cache_write(&inputs_hash, "inputs", &inputs_json.as_bytes().to_vec());
         cache_write(&inputs_hash, "env", &serialize_env(&env));
