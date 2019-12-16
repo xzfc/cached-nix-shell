@@ -1,5 +1,4 @@
 mod args;
-mod util;
 
 use crate::args::Args;
 use crypto::digest::Digest;
@@ -68,7 +67,7 @@ fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
         .tuples::<(_, _)>()
         .collect::<BTreeMap<&[u8], &[u8]>>();
 
-    let mut tmp = OsString::new();
+    let mut tmp: OsString;
 
     for (k, v) in items.iter() {
         let fname = OsStr::from_bytes(&k[1..]);
@@ -293,11 +292,12 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
         hasher.result_str()
     };
 
-    let mut env = if let Some(env) = check_cache(&inputs_hash) {
+    let env = if let Some(env) = check_cache(&inputs_hash) {
         env
     } else {
         let outp = run_nix_shell(inp);
 
+        // TODO: use flock
         cache_write(&inputs_hash, "inputs", &inputs);
         cache_write(&inputs_hash, "env", &serialize_env(&outp.env));
         cache_write(&inputs_hash, "trace", &outp.trace);
@@ -308,14 +308,33 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
         outp.env
     };
 
-    if !pure {
-        env.insert(
-            OsStr::new("PATH").to_os_string(),
-            util::env_path_concat(
-                env.get(OsStr::new("PATH")),
-                std::env::var_os("PATH").as_ref(),
-            ),
-        );
+    if pure {
+        env
+    } else {
+        merge_env(env)
+    }
+}
+
+fn merge_env(mut env: EnvMap) -> EnvMap {
+    let mut delim = EnvMap::new();
+    delim.insert(OsString::from("PATH"), OsString::from(":"));
+    delim.insert(OsString::from("HOST_PATH"), OsString::from(":"));
+
+    for (var, val) in std::env::vars_os() {
+        env.entry(var.clone())
+            .and_modify(|old_val| {
+                if let Some(d) = delim.get(&var) {
+                    *old_val = OsString::from(OsStr::from_bytes(
+                        &[
+                            old_val.as_os_str().as_bytes(),
+                            d.as_os_str().as_bytes(),
+                            val.as_os_str().as_bytes(),
+                        ]
+                        .concat(),
+                    ));
+                }
+            })
+            .or_insert_with(|| val);
     }
     env
 }

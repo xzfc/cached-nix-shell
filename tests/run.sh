@@ -35,6 +35,7 @@ result=0
 
 export PATH=$PWD/bin:$PATH
 export SOME_VAR=some-var-value
+export LC_ALL=C
 
 run ./00-lua.sh
 check_contains "Lua.org"
@@ -72,12 +73,13 @@ check_slow
 
 run ./04-path-impure.sh
 check_contains "running-some-bin"
+check_contains "Hello, world!"
 
 run ./05-path-pure.sh
 check_contains "cant-find-some-bin"
 
 run ./06-env-impure.sh
-skip check_contains "some-var-value"
+check_contains "some-var-value"
 
 run ./07-env-pure.sh
 check_contains "doesnt-have-some-var"
