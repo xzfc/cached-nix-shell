@@ -138,10 +138,6 @@ struct NixShellOutput {
 fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
     let mut args = Vec::new();
 
-    if !x.pure {
-        eprintln!("cached-nix-shell: implied --pure");
-        // TODO
-    }
     args.push(OsString::from("--pure"));
 
     let env = {
@@ -298,7 +294,7 @@ fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
 fn run_script(fname: OsString, nix_shell_args: Vec<OsString>, script_args: Vec<OsString>) {
     let nix_shell_args = Args::parse(nix_shell_args).expect("p");
     let inp = args_to_inp(&fname, &nix_shell_args);
-    let env = cached_shell_env(&inp);
+    let env = cached_shell_env(nix_shell_args.pure, &inp);
 
     let mut interpreter_args = script_args;
     interpreter_args.insert(0, fname);
@@ -311,7 +307,7 @@ fn run_script(fname: OsString, nix_shell_args: Vec<OsString>, script_args: Vec<O
     unreachable!()
 }
 
-fn cached_shell_env(inp: &NixShellInput) -> EnvMap {
+fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
     let inputs = serialize_vecs(&[
         &serialize_env(&inp.env),
         &serialize_args(&inp.args),
@@ -339,13 +335,15 @@ fn cached_shell_env(inp: &NixShellInput) -> EnvMap {
         outp.env
     };
 
-    env.insert(
-        OsStr::new("PATH").to_os_string(),
-        util::env_path_concat(
-            env.get(OsStr::new("PATH")),
-            std::env::var_os("PATH").as_ref(),
-        ),
-    );
+    if !pure {
+        env.insert(
+            OsStr::new("PATH").to_os_string(),
+            util::env_path_concat(
+                env.get(OsStr::new("PATH")),
+                std::env::var_os("PATH").as_ref(),
+            ),
+        );
+    }
     env
 }
 

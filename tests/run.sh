@@ -7,7 +7,7 @@ rm -rf ~/.cache/cached-nix-shell
 
 run() {
 	rm -f tmp/time tmp/out
-	printf "Running %s\n" "$*"
+	printf "\x1b[1mRunning %s\x1b[m\n" "$*"
 	time -o tmp/time -f "%e" -- "$@" > tmp/out
 }
 
@@ -18,6 +18,7 @@ check() {
 		printf "\x1b[32m+ %s\x1b[m\n" "$text"
 	else
 		printf "\x1b[31m- %s\x1b[m\n" "$text"
+		result=1
 	fi
 }
 
@@ -25,9 +26,15 @@ check_contains() { check "contains $1"   grep -q "$1" tmp/out; }
 check_slow() { check "slow ($(cat tmp/time))"  grep -vq "^0.0" tmp/time; }
 check_fast() { check "fast ($(cat tmp/time))"  grep -q "^0.0" tmp/time; }
 
+skip() { printf "\x1b[33m? skip %s\x1b[m\n" "$*"; }
+
 which cached-nix-shell > /dev/null || exit 1
 
 trap 'rm -rf tmp' EXIT
+result=0
+
+export PATH=$PWD/bin:$PATH
+export SOME_VAR=some-var-value
 
 run ./00-lua.sh
 check_contains "Lua.org"
@@ -62,3 +69,17 @@ echo '"val2"' > ./tmp/03-foo.nix
 run ./03-file-dep.sh
 check_contains "val2"
 check_slow
+
+run ./04-path-impure.sh
+check_contains "running-some-bin"
+
+run ./05-path-pure.sh
+check_contains "cant-find-some-bin"
+
+run ./06-env-impure.sh
+skip check_contains "some-var-value"
+
+run ./07-env-pure.sh
+check_contains "doesnt-have-some-var"
+
+exit $result
