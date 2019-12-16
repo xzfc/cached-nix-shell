@@ -179,41 +179,14 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
 
     let trace_file = NamedTempFile::new().expect("can't create temporary file");
 
-    let trace_nix_so = (|| {
-        if option_env!("IN_NIX_SHELL") == Some("impure") {
-            std::env::current_exe()
-                .ok()?
-                .parent()?
-                .join("../../nix-trace/build/trace-nix.so")
-                .canonicalize()
-                .ok()
-        } else {
-            std::env::current_exe()
-                .ok()?
-                .parent()?
-                .join("../lib/trace-nix.so")
-                .canonicalize()
-                .ok()
-        }
-    })();
-
-    let mut clean_env = inp.env.clone();
-    if let Some(trace_nix_so) = trace_nix_so {
-        clean_env.insert(OsString::from("LD_PRELOAD"), OsString::from(trace_nix_so));
-        clean_env.insert(
-            OsString::from("TRACE_NIX"),
-            OsString::from(trace_file.path()),
-        );
-    } else {
-        eprintln!("cached-nix-shell: couldn't find trace-nix.so");
-    }
-
     let env = {
         let exec = Command::new("nix-shell")
             .args(&inp.args)
             .stderr(std::process::Stdio::inherit())
             .env_clear()
-            .envs(clean_env)
+            .envs(&inp.env)
+            .env("LD_PRELOAD", env!("CARGO_TRACE_NIX_SO"))
+            .env("TRACE_NIX", trace_file.path())
             .output()
             .expect("failed to execute nix-shell");
         if !exec.status.success() {
