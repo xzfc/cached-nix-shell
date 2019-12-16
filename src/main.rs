@@ -1,7 +1,7 @@
-use serde_json::json;
-
+mod args;
 mod util;
 
+use crate::args::Args;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
 use crypto::sha1::Sha1;
@@ -41,6 +41,15 @@ fn deserealize_env(vec: Vec<u8>) -> EnvMap {
             )
         })
         .collect::<BTreeMap<_, _>>()
+}
+
+fn serialize_args(args: &Vec<OsString>) -> Vec<u8> {
+    let mut vec = Vec::new();
+    for arg in args {
+        vec.extend(arg.as_bytes());
+        vec.push(0);
+    }
+    vec
 }
 
 fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
@@ -115,7 +124,7 @@ fn get_clean_env() -> EnvMap {
     clean_env
 }
 
-fn get_shell_env(rest: Vec<&str>, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<u8>>, String) {
+fn get_shell_env(args: &Args, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<u8>>, String) {
     eprintln!("cached-nix-shell: updating cache");
 
     let trace_file = NamedTempFile::new().expect("can't create temporary file");
@@ -149,11 +158,14 @@ fn get_shell_env(rest: Vec<&str>, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<
     }
 
     let env = {
-        let mut args = vec!["--pure", "--packages", "--run", "env -0", "--"];
-        args.extend(rest);
+        let mut nix_shell_args = vec!["--pure", "--packages", "--run", "env -0", "--"]
+            .into_iter()
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        nix_shell_args.extend(args.rest.clone());
 
         let exec = Command::new("nix-shell")
-            .args(args)
+            .args(nix_shell_args)
             .stderr(std::process::Stdio::inherit())
             .env_clear()
             .envs(clean_env)
@@ -202,7 +214,7 @@ fn get_shell_env(rest: Vec<&str>, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<
 
 // Parse script in the same way as nix-shell does.
 // Reference: src/nix-build/nix-build.cc:112
-fn parse_script(fname: &str) -> Option<Vec<String>> {
+fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
     use std::io::BufRead;
 
     let f = File::open(fname).ok()?; // File doesn't exists
@@ -226,61 +238,17 @@ fn parse_script(fname: &str) -> Option<Vec<String>> {
         }
     }
 
-    Some(args)
+    // TODO: proper OsStrings
+    Some(args.into_iter().map(OsString::from).collect())
 }
 
-fn clap_app() -> clap::App<'static, 'static> {
-    clap::App::new("cached-nix-shell")
-        .version("0.1")
-        .setting(clap::AppSettings::TrailingVarArg)
-        .arg(
-            clap::Arg::with_name("ATTR")
-                .short("A")
-                .long("attr")
-                .takes_value(true),
-        )
-        .arg(
-            clap::Arg::with_name("PACKAGES")
-                .short("p")
-                .long("packages"),
-        )
-        .arg(
-            clap::Arg::with_name("COMMAND")
-                .long("run")
-                .takes_value(true),
-        )
-        .arg(clap::Arg::with_name("REST").multiple(true))
-}
-
-fn clap_app_shebang() -> clap::App<'static, 'static> {
-    clap::App::new("cached-nix-shell")
-        .setting(clap::AppSettings::TrailingVarArg)
-        .arg(
-            clap::Arg::with_name("PACKAGES")
-                .short("p")
-                .long("packages"),
-        )
-        .arg(
-            clap::Arg::with_name("INTERPRETER")
-                .short("i")
-                .takes_value(true),
-        )
-        .arg(clap::Arg::with_name("REST").multiple(true))
-}
-
-fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<String>) {
-    nix_shell_args.insert(0, "???".to_string()); // satisfy clap
-    let matches = clap_app_shebang().get_matches_from(nix_shell_args);
-
-    let matches_rest = matches.values_of("REST").unwrap().collect::<Vec<&str>>();
-
-    let matches_interpreter = matches.value_of("INTERPRETER").unwrap();
-
-    let env = cached_shell_env(matches_rest);
+fn run_script(fname: OsString, nix_shell_args: Vec<OsString>, script_args: Vec<OsString>) {
+    let nix_shell_args = Args::parse(nix_shell_args).expect("p");
+    let env = cached_shell_env(&nix_shell_args);
 
     let mut interpreter_args = script_args;
-    interpreter_args.insert(0, fname.to_string());
-    let exec = Command::new(matches_interpreter)
+    interpreter_args.insert(0, fname);
+    let exec = Command::new(nix_shell_args.interpreter)
         .args(interpreter_args)
         .env_clear()
         .envs(&env)
@@ -289,26 +257,22 @@ fn run_script(fname: &str, mut nix_shell_args: Vec<String>, script_args: Vec<Str
     unreachable!()
 }
 
-fn cached_shell_env(rest: Vec<&str>) -> EnvMap {
+fn cached_shell_env(args: &Args) -> EnvMap {
     let clean_env = get_clean_env();
-    let inputs_json = json!({
-        "args": rest.iter().map(|x| x.to_string()).collect::<Vec<String>>(),
-        "env": serialize_env(&clean_env),
-    })
-    .to_string();
+    let inputs = [serialize_env(&clean_env), serialize_args(&args.raw)].concat();
 
     let inputs_hash = {
         let mut hasher = Sha1::new();
-        hasher.input_str(&inputs_json);
+        hasher.input(&inputs);
         hasher.result_str()
     };
 
     let mut env = if let Some(env) = check_cache(&inputs_hash) {
         env
     } else {
-        let (env, trace, drv) = get_shell_env(rest, clean_env);
+        let (env, trace, drv) = get_shell_env(args, clean_env);
 
-        cache_write(&inputs_hash, "inputs", &inputs_json.as_bytes().to_vec());
+        cache_write(&inputs_hash, "inputs", &inputs);
         cache_write(&inputs_hash, "env", &serialize_env(&env));
         if let Some(trace) = trace {
             cache_write(&inputs_hash, "trace", &trace);
@@ -382,31 +346,17 @@ fn cache_symlink(hash: &str, ext: &str, target: &str) {
 }
 
 fn main() {
-    let argv: Vec<String> = std::env::args().into_iter().collect();
+    let argv: Vec<OsString> = std::env::args_os().into_iter().collect();
 
     if argv.len() >= 2 {
         let fname = &argv[1];
         if let Some(nix_shell_args) = parse_script(&fname) {
             run_script(
-                fname,
+                fname.clone(),
                 nix_shell_args,
-                std::env::args().into_iter().skip(1).collect(),
+                std::env::args_os().into_iter().skip(1).collect(),
             );
             std::process::exit(0);
         }
     }
-
-    let matches = clap_app().get_matches();
-    let matches_rest = matches.values_of("REST").unwrap().collect::<Vec<&str>>();
-    let matches_command = matches.value_of("COMMAND").unwrap_or("bash");
-
-    let env = cached_shell_env(matches_rest);
-
-    let exec = Command::new("bash")
-        .args(vec!["-c", matches_command])
-        .env_clear()
-        .envs(&env)
-        .exec();
-    eprintln!("cached-nix-shell: couldn't run bash: {:?}", exec);
-    unreachable!()
 }
