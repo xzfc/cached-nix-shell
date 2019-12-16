@@ -52,6 +52,15 @@ fn serialize_args(args: &Vec<OsString>) -> Vec<u8> {
     vec
 }
 
+fn serialize_vecs(vecs: &[&[u8]]) -> Vec<u8> {
+    let mut vec = Vec::new();
+    for v in vecs {
+        vec.extend(format!("{}\0", v.len()).as_str().as_bytes());
+        vec.extend(v.iter());
+    }
+    vec
+}
+
 fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
     let items = vec
         .split(|&b| b == 0)
@@ -114,17 +123,62 @@ fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
     Some(result)
 }
 
-fn get_clean_env() -> EnvMap {
-    let mut clean_env = BTreeMap::new();
-    for var in vec!["NIX_PATH", "XDG_RUNTIME_DIR", "TMPDIR"] {
-        if let Some(val) = std::env::var_os(var) {
-            clean_env.insert(OsString::from(var), OsString::from(val));
-        }
-    }
-    clean_env
+struct NixShellInput {
+    pwd: OsString,
+    env: EnvMap,
+    args: Vec<OsString>,
 }
 
-fn get_shell_env(args: &Args, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<u8>>, String) {
+struct NixShellOutput {
+    env: EnvMap,
+    trace: Vec<u8>,
+    drv: String,
+}
+
+fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
+    let mut args = Vec::new();
+
+    if !x.pure {
+        eprintln!("cached-nix-shell: implied --pure");
+        // TODO
+    }
+    args.push(OsString::from("--pure"));
+
+    let env = {
+        let mut clean_env = BTreeMap::new();
+        for var in vec!["NIX_PATH", "XDG_RUNTIME_DIR", "TMPDIR"] {
+            if let Some(val) = std::env::var_os(var) {
+                clean_env.insert(OsString::from(var), OsString::from(val));
+            }
+        }
+        clean_env
+    };
+
+    if x.packages {
+        args.push(OsString::from("--packages"));
+    } else {
+        panic!("Unimplemented, you should use --packages");
+    }
+
+    args.push(OsString::from("--run"));
+    args.push(OsString::from("env -0"));
+    args.push(OsString::from("--"));
+    args.extend(x.rest.clone());
+
+    NixShellInput {
+        pwd: std::path::PathBuf::from(script_fname)
+            .parent()
+            .expect("Can't get script dirname")
+            .canonicalize()
+            .expect("Can't canonicalize script dirname")
+            .as_os_str()
+            .to_os_string(),
+        env: env,
+        args: args,
+    }
+}
+
+fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
     eprintln!("cached-nix-shell: updating cache");
 
     let trace_file = NamedTempFile::new().expect("can't create temporary file");
@@ -147,6 +201,7 @@ fn get_shell_env(args: &Args, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<u8>>
         }
     })();
 
+    let mut clean_env = inp.env.clone();
     if let Some(trace_nix_so) = trace_nix_so {
         clean_env.insert(OsString::from("LD_PRELOAD"), OsString::from(trace_nix_so));
         clean_env.insert(
@@ -158,14 +213,8 @@ fn get_shell_env(args: &Args, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<u8>>
     }
 
     let env = {
-        let mut nix_shell_args = vec!["--pure", "--packages", "--run", "env -0", "--"]
-            .into_iter()
-            .map(OsString::from)
-            .collect::<Vec<_>>();
-        nix_shell_args.extend(args.rest.clone());
-
         let exec = Command::new("nix-shell")
-            .args(nix_shell_args)
+            .args(&inp.args)
             .stderr(std::process::Stdio::inherit())
             .env_clear()
             .envs(clean_env)
@@ -209,7 +258,11 @@ fn get_shell_env(args: &Args, mut clean_env: EnvMap) -> (EnvMap, Option<Vec<u8>>
         drv.clone()
     };
 
-    (env, trace, drv)
+    NixShellOutput {
+        env,
+        trace: trace.unwrap(),
+        drv,
+    }
 }
 
 // Parse script in the same way as nix-shell does.
@@ -244,7 +297,8 @@ fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
 
 fn run_script(fname: OsString, nix_shell_args: Vec<OsString>, script_args: Vec<OsString>) {
     let nix_shell_args = Args::parse(nix_shell_args).expect("p");
-    let env = cached_shell_env(&nix_shell_args);
+    let inp = args_to_inp(&fname, &nix_shell_args);
+    let env = cached_shell_env(&inp);
 
     let mut interpreter_args = script_args;
     interpreter_args.insert(0, fname);
@@ -257,9 +311,12 @@ fn run_script(fname: OsString, nix_shell_args: Vec<OsString>, script_args: Vec<O
     unreachable!()
 }
 
-fn cached_shell_env(args: &Args) -> EnvMap {
-    let clean_env = get_clean_env();
-    let inputs = [serialize_env(&clean_env), serialize_args(&args.raw)].concat();
+fn cached_shell_env(inp: &NixShellInput) -> EnvMap {
+    let inputs = serialize_vecs(&[
+        &serialize_env(&inp.env),
+        &serialize_args(&inp.args),
+        inp.pwd.as_bytes(),
+    ]);
 
     let inputs_hash = {
         let mut hasher = Sha1::new();
@@ -270,18 +327,16 @@ fn cached_shell_env(args: &Args) -> EnvMap {
     let mut env = if let Some(env) = check_cache(&inputs_hash) {
         env
     } else {
-        let (env, trace, drv) = get_shell_env(args, clean_env);
+        let outp = run_nix_shell(inp);
 
         cache_write(&inputs_hash, "inputs", &inputs);
-        cache_write(&inputs_hash, "env", &serialize_env(&env));
-        if let Some(trace) = trace {
-            cache_write(&inputs_hash, "trace", &trace);
-        }
-        cache_symlink(&inputs_hash, "drv", &drv);
+        cache_write(&inputs_hash, "env", &serialize_env(&outp.env));
+        cache_write(&inputs_hash, "trace", &outp.trace);
+        cache_symlink(&inputs_hash, "drv", &outp.drv);
         // TODO: store gcroot
         // TODO: `#! cached-nix-shell --store`
 
-        env
+        outp.env
     };
 
     env.insert(
