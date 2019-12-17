@@ -19,11 +19,7 @@ impl Args {
             raw: Vec::new(),
         };
         let mut it = args.iter();
-        loop {
-            let arg = match it.next() {
-                Some(arg) => arg.clone(),
-                None => break,
-            };
+        while let Some(arg) = it.next() {
             if arg == "--attr" || arg == "-A" {
                 eprintln!("cached-nix-shell: option not implemented: {:?}", arg);
                 return None;
@@ -42,7 +38,7 @@ impl Args {
                 eprintln!("cached-nix-shell: unexpected arg `{:?}`", arg);
                 return None;
             } else {
-                res.rest.push(arg);
+                res.rest.push(arg.clone());
             }
         }
         res.raw = args;

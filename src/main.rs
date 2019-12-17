@@ -1,5 +1,3 @@
-mod args;
-
 use crate::args::Args;
 use crypto::digest::Digest;
 use crypto::md5::Md5;
@@ -13,6 +11,8 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 use tempfile::NamedTempFile;
+
+mod args;
 
 type EnvMap = BTreeMap<OsString, OsString>;
 
@@ -31,7 +31,7 @@ fn serialize_env(env: &EnvMap) -> Vec<u8> {
 /// Deserealize environment variables from `env -0` format.
 fn deserealize_env(vec: Vec<u8>) -> EnvMap {
     vec.split(|&b| b == 0)
-        .filter(|&var| var.len() != 0) // last entry has trailing NUL
+        .filter(|&var| !var.is_empty()) // last entry has trailing NUL
         .map(|var| {
             let pos = var.iter().position(|&x| x == b'=').unwrap();
             (
@@ -42,7 +42,7 @@ fn deserealize_env(vec: Vec<u8>) -> EnvMap {
         .collect::<BTreeMap<_, _>>()
 }
 
-fn serialize_args(args: &Vec<OsString>) -> Vec<u8> {
+fn serialize_args(args: &[OsString]) -> Vec<u8> {
     let mut vec = Vec::new();
     for arg in args {
         vec.extend(arg.as_bytes());
@@ -60,16 +60,18 @@ fn serialize_vecs(vecs: &[&[u8]]) -> Vec<u8> {
     vec
 }
 
+/// Deserealize and check nix-trace output.
+/// Return None if some files are updated.
+/// Otherwise return sorted and de-duped input.
 fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
     let items = vec
         .split(|&b| b == 0)
-        .filter(|&fname| fname.len() != 0) // last entry has trailing NUL
+        .filter(|&fname| !fname.is_empty()) // last entry has trailing NUL
         .tuples::<(_, _)>()
         .collect::<BTreeMap<&[u8], &[u8]>>();
 
-    let mut tmp: OsString;
-
     for (k, v) in items.iter() {
+        let tmp: OsString;
         let fname = OsStr::from_bytes(&k[1..]);
         let res = match k.iter().next() {
             Some(b's') => match nix::sys::stat::lstat(fname) {
@@ -141,9 +143,9 @@ fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
 
     let env = {
         let mut clean_env = BTreeMap::new();
-        for var in vec!["NIX_PATH", "XDG_RUNTIME_DIR", "TMPDIR"] {
+        for var in &["NIX_PATH", "XDG_RUNTIME_DIR", "TMPDIR"] {
             if let Some(val) = std::env::var_os(var) {
-                clean_env.insert(OsString::from(var), OsString::from(val));
+                clean_env.insert(OsString::from(var), val);
             }
         }
         clean_env
@@ -168,14 +170,12 @@ fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
             .expect("Can't canonicalize script dirname")
             .as_os_str()
             .to_os_string(),
-        env: env,
-        args: args,
+        env,
+        args,
     }
 }
 
 fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
-    eprintln!("cached-nix-shell: updating cache");
-
     let trace_file = NamedTempFile::new().expect("can't create temporary file");
 
     let env = {
@@ -295,6 +295,7 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
     let env = if let Some(env) = check_cache(&inputs_hash) {
         env
     } else {
+        eprintln!("cached-nix-shell: updating cache");
         let outp = run_nix_shell(inp);
 
         // TODO: use flock
@@ -302,8 +303,6 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
         cache_write(&inputs_hash, "env", &serialize_env(&outp.env));
         cache_write(&inputs_hash, "trace", &outp.trace);
         cache_symlink(&inputs_hash, "drv", &outp.drv);
-        // TODO: store gcroot
-        // TODO: `#! cached-nix-shell --store`
 
         outp.env
     };
@@ -315,6 +314,7 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
     }
 }
 
+// Merge ambient (impure) environment into cached env.
 fn merge_env(mut env: EnvMap) -> EnvMap {
     let mut delim = EnvMap::new();
     delim.insert(OsString::from("PATH"), OsString::from(":"));
@@ -359,10 +359,10 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
     trace_file.read_to_end(&mut trace_buf).unwrap();
     process_trace(trace_buf)?;
 
-    return Some(env);
+    Some(env)
 }
 
-fn cache_write(hash: &str, ext: &str, text: &Vec<u8>) {
+fn cache_write(hash: &str, ext: &str, text: &[u8]) {
     let f = || -> Result<(), std::io::Error> {
         let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
         let fname = xdg_dirs.place_cache_file(format!("{}.{}", hash, ext))?;
@@ -391,7 +391,7 @@ fn cache_symlink(hash: &str, ext: &str, target: &str) {
 }
 
 fn main() {
-    let argv: Vec<OsString> = std::env::args_os().into_iter().collect();
+    let argv: Vec<OsString> = std::env::args_os().collect();
 
     if argv.len() >= 2 {
         let fname = &argv[1];
@@ -399,7 +399,7 @@ fn main() {
             run_script(
                 fname.clone(),
                 nix_shell_args,
-                std::env::args_os().into_iter().skip(1).collect(),
+                std::env::args_os().skip(1).collect(),
             );
             std::process::exit(0);
         }
