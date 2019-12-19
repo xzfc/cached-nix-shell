@@ -21,7 +21,10 @@ impl Args {
         let mut it = args.iter();
         while let Some(arg) = it.next() {
             if arg == "--attr" || arg == "-A" {
-                eprintln!("cached-nix-shell: option not implemented: {:?}", arg);
+                eprintln!(
+                    "cached-nix-shell: option not implemented: {:?}",
+                    arg
+                );
                 return None;
             } else if arg == "--pure" {
                 res.pure = true;

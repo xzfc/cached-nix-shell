@@ -79,7 +79,8 @@ fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
 
     let env = {
         let mut clean_env = BTreeMap::new();
-        let whitelist = &["NIX_PATH", "NIX_SSL_CERT_FILE", "XDG_RUNTIME_DIR", "TMPDIR"];
+        let whitelist =
+            &["NIX_PATH", "NIX_SSL_CERT_FILE", "XDG_RUNTIME_DIR", "TMPDIR"];
         for var in whitelist {
             if let Some(val) = std::env::var_os(var) {
                 clean_env.insert(OsString::from(var), val);
@@ -145,7 +146,8 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
         .get(OsStr::new("out"))
         .expect("expected to have `out` environment variable");
 
-    let mut trace_file = trace_file.reopen().expect("can't reopen temporary file");
+    let mut trace_file =
+        trace_file.reopen().expect("can't reopen temporary file");
     let mut trace_data = Vec::new();
     trace_file
         .read_to_end(&mut trace_data)
@@ -198,7 +200,8 @@ fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
             let line = caps.get(1).unwrap().as_str();
             // XXX: probably rust-shellwords isn't the same as shellwords()
             //      defined in src/nix-build/nix-build.cc.
-            let words = shellwords::split(line).expect("Can't shellwords::split");
+            let words =
+                shellwords::split(line).expect("Can't shellwords::split");
             args.extend(words);
         }
     }
@@ -207,7 +210,11 @@ fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
     Some(args.into_iter().map(OsString::from).collect())
 }
 
-fn run_script(fname: OsString, nix_shell_args: Vec<OsString>, script_args: Vec<OsString>) {
+fn run_script(
+    fname: OsString,
+    nix_shell_args: Vec<OsString>,
+    script_args: Vec<OsString>,
+) {
     let nix_shell_args = Args::parse(nix_shell_args).expect("p");
     let inp = args_to_inp(&fname, &nix_shell_args);
     let env = cached_shell_env(nix_shell_args.pure, &inp);
@@ -284,7 +291,8 @@ fn merge_env(mut env: EnvMap) -> EnvMap {
 }
 
 fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
-    let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
+    let xdg_dirs =
+        xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
 
     let env_fname = xdg_dirs.find_cache_file(format!("{}.env", hash))?;
     let drv_fname = xdg_dirs.find_cache_file(format!("{}.drv", hash))?;
@@ -311,7 +319,8 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
 
 fn cache_write(hash: &str, ext: &str, text: &[u8]) {
     let f = || -> Result<(), std::io::Error> {
-        let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
+        let xdg_dirs =
+            xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
         let fname = xdg_dirs.place_cache_file(format!("{}.{}", hash, ext))?;
         let mut file = File::create(fname)?;
         file.write_all(text)?;
@@ -325,7 +334,8 @@ fn cache_write(hash: &str, ext: &str, text: &[u8]) {
 
 fn cache_symlink(hash: &str, ext: &str, target: &str) {
     let f = || -> Result<(), std::io::Error> {
-        let xdg_dirs = xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
+        let xdg_dirs =
+            xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
         let fname = xdg_dirs.place_cache_file(format!("{}.{}", hash, ext))?;
         let _ = std::fs::remove_file(&fname);
         std::os::unix::fs::symlink(target, &fname)?;
