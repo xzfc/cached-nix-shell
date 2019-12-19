@@ -1,8 +1,7 @@
 use crate::args::Args;
+use crate::trace::Trace;
 use crypto::digest::Digest;
-use crypto::md5::Md5;
 use crypto::sha1::Sha1;
-use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::{read_link, File};
@@ -13,6 +12,7 @@ use std::process::Command;
 use tempfile::NamedTempFile;
 
 mod args;
+mod trace;
 
 type EnvMap = BTreeMap<OsString, OsString>;
 
@@ -60,70 +60,6 @@ fn serialize_vecs(vecs: &[&[u8]]) -> Vec<u8> {
     vec
 }
 
-/// Deserealize and check nix-trace output.
-/// Return None if some files are updated.
-/// Otherwise return sorted and de-duped input.
-fn process_trace(vec: Vec<u8>) -> Option<Vec<u8>> {
-    let items = vec
-        .split(|&b| b == 0)
-        .filter(|&fname| !fname.is_empty()) // last entry has trailing NUL
-        .tuples::<(_, _)>()
-        .collect::<BTreeMap<&[u8], &[u8]>>();
-
-    for (k, v) in items.iter() {
-        let tmp: OsString;
-        let fname = OsStr::from_bytes(&k[1..]);
-        let res = match k.iter().next() {
-            Some(b's') => match nix::sys::stat::lstat(fname) {
-                Ok(_) => match nix::fcntl::readlink(fname) {
-                    Ok(x) => {
-                        tmp = x;
-                        tmp.as_os_str()
-                    }
-                    Err(_) => OsStr::new("+"),
-                },
-                Err(_) => OsStr::new("-"),
-            },
-            Some(b'f') => match File::open(fname) {
-                Ok(mut file) => {
-                    let mut data = Vec::new();
-                    file.read_to_end(&mut data).expect("Can't read file");
-
-                    let mut digest = Md5::new();
-                    digest.input(&data);
-
-                    tmp = OsString::from(digest.result_str());
-                    tmp.as_os_str()
-                }
-                Err(_) => OsStr::new("-"),
-            },
-            Some(b'd') => {
-                OsStr::new("???") // TODO
-            }
-            _ => panic!("Unexpected"),
-        };
-
-        if res.as_bytes() != *v {
-            println!(
-                "{:?}: expected {:?}, got {:?}",
-                fname,
-                OsStr::from_bytes(v),
-                res
-            );
-            return None;
-        }
-    }
-
-    let mut result = Vec::<u8>::new();
-    for (a, b) in items {
-        result.push(0);
-        result.extend(a);
-        result.push(0);
-        result.extend(b);
-    }
-    Some(result)
-}
-
 struct NixShellInput {
     pwd: OsString,
     env: EnvMap,
@@ -132,7 +68,7 @@ struct NixShellInput {
 
 struct NixShellOutput {
     env: EnvMap,
-    trace: Vec<u8>,
+    trace: trace::Trace,
     drv: String,
 }
 
@@ -205,7 +141,10 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
     trace_file
         .read_to_end(&mut trace_data)
         .expect("Can't read trace file");
-    let trace = process_trace(trace_data);
+    let trace = Trace::load(trace_data);
+    if trace.check_for_changes() {
+        eprintln!("cached-nix-shell: some files are already updated, cache won't be reused");
+    }
     std::mem::drop(trace_file);
 
     let drv: String = {
@@ -226,11 +165,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
         drv.clone()
     };
 
-    NixShellOutput {
-        env,
-        trace: trace.unwrap(),
-        drv,
-    }
+    NixShellOutput { env, trace, drv }
 }
 
 // Parse script in the same way as nix-shell does.
@@ -301,7 +236,7 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
         // TODO: use flock
         cache_write(&inputs_hash, "inputs", &inputs);
         cache_write(&inputs_hash, "env", &serialize_env(&outp.env));
-        cache_write(&inputs_hash, "trace", &outp.trace);
+        cache_write(&inputs_hash, "trace", &outp.trace.serialize());
         cache_symlink(&inputs_hash, "drv", &outp.drv);
 
         outp.env
@@ -357,7 +292,10 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
     let mut trace_file = File::open(trace_fname).unwrap();
     let mut trace_buf = Vec::<u8>::new();
     trace_file.read_to_end(&mut trace_buf).unwrap();
-    process_trace(trace_buf)?;
+    let trace = Trace::load(trace_buf);
+    if trace.check_for_changes() {
+        return None;
+    }
 
     Some(env)
 }
