@@ -9,6 +9,9 @@ in (cargo.cached_nix_shell {}).overrideAttrs(a: rec {
   buildInputs = [ pkgs.pkgconfig pkgs.openssl ];
   CARGO_USE_OUT = "1";
   postInstall = ''
+    # https://github.com/NixOS/nixpkgs/pull/73803
+    if [ -d "$lib" ];then mv $lib/* $out; fi
+
     rm $out/bin/*.d $out/lib/link $out/lib/cached-nix-shell.opt
     rm -r $out/lib/cached-nix-shell
   '';
