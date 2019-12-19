@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 itertools = "0.8"
 nix = "0.16"
+quale = "1.0"
 regex = "1"
 rust-crypto = "^0.2"
 serde_json = "1.0"

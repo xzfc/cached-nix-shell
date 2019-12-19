@@ -17,6 +17,7 @@ rec {
       dependencies = mapFeatures features ([
         (cratesIO.crates."itertools"."${deps."cached_nix_shell"."0.1.0"."itertools"}" deps)
         (cratesIO.crates."nix"."${deps."cached_nix_shell"."0.1.0"."nix"}" deps)
+        (cratesIO.crates."quale"."${deps."cached_nix_shell"."0.1.0"."quale"}" deps)
         (cratesIO.crates."regex"."${deps."cached_nix_shell"."0.1.0"."regex"}" deps)
         (cratesIO.crates."rust_crypto"."${deps."cached_nix_shell"."0.1.0"."rust_crypto"}" deps)
         (cratesIO.crates."serde_json"."${deps."cached_nix_shell"."0.1.0"."serde_json"}" deps)
@@ -29,6 +30,7 @@ rec {
       cached_nix_shell."0.1.0".default = (f.cached_nix_shell."0.1.0".default or true);
       itertools."${deps.cached_nix_shell."0.1.0".itertools}".default = true;
       nix."${deps.cached_nix_shell."0.1.0".nix}".default = true;
+      quale."${deps.cached_nix_shell."0.1.0".quale}".default = true;
       regex."${deps.cached_nix_shell."0.1.0".regex}".default = true;
       rust_crypto."${deps.cached_nix_shell."0.1.0".rust_crypto}".default = true;
       serde_json."${deps.cached_nix_shell."0.1.0".serde_json}".default = true;
@@ -38,6 +40,7 @@ rec {
     }) [
       (cratesIO.features_.itertools."${deps."cached_nix_shell"."0.1.0"."itertools"}" deps)
       (cratesIO.features_.nix."${deps."cached_nix_shell"."0.1.0"."nix"}" deps)
+      (cratesIO.features_.quale."${deps."cached_nix_shell"."0.1.0"."quale"}" deps)
       (cratesIO.features_.regex."${deps."cached_nix_shell"."0.1.0"."regex"}" deps)
       (cratesIO.features_.rust_crypto."${deps."cached_nix_shell"."0.1.0"."rust_crypto"}" deps)
       (cratesIO.features_.serde_json."${deps."cached_nix_shell"."0.1.0"."serde_json"}" deps)
@@ -63,6 +66,7 @@ rec {
   deps.cached_nix_shell."0.1.0" = {
     itertools = "0.8.2";
     nix = "0.16.0";
+    quale = "1.0.0";
     regex = "1.3.1";
     rust_crypto = "0.2.36";
     serde_json = "1.0.44";
@@ -94,6 +98,9 @@ rec {
     void = "1.0.2";
   };
   deps.ppv_lite86."0.2.6" = {};
+  deps.quale."1.0.0" = {
+    libc = "0.2.66";
+  };
   deps.rand."0.3.23" = {
     libc = "0.2.66";
     rand = "0.4.6";

@@ -84,6 +84,14 @@ fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
                 clean_env.insert(OsString::from(var), val);
             }
         }
+        if let Some(nix_shell_path) =
+            (|| Some(quale::which("nix-shell")?.parent()?.to_path_buf()))()
+        {
+            clean_env.insert(
+                OsString::from("PATH"),
+                OsString::from(nix_shell_path.as_os_str()),
+            );
+        }
         clean_env
     };
 
