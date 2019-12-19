@@ -135,6 +135,7 @@ static int enable(const char *path) {
 	};
 	static const char *ignored_prefices[] = {
 		"/nix/store/", // assuming store paths are immutable
+		"/nix/var/nix/temproots/",
 		"/proc/",
 		NULL,
 	};
