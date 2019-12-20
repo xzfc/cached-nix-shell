@@ -17,7 +17,7 @@ impl Trace {
         let items = vec
             .split(|&b| b == 0)
             .filter(|&fname| !fname.is_empty()) // last entry has trailing NUL
-            .map(|x| Vec::from(x))
+            .map(Vec::from)
             .tuples::<(_, _)>()
             .collect::<BTreeMap<Vec<u8>, Vec<u8>>>();
         Trace { items }
