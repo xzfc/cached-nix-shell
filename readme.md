@@ -5,7 +5,7 @@
 
 Having a single file containing both code and its dependencies is a useful feature provided by `nix-shell`. However long startup times make it unsuitable for some use-cases.
 
-This example script took 0.5 seconds to run on my machine:
+This example script took 0.34 seconds to run on my machine:
 
 ```python
 #! /usr/bin/env nix-shell
