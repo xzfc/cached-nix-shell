@@ -8,7 +8,7 @@ use std::fs::{read_link, File};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
-use std::process::Command;
+use std::process::{exit, Command};
 use tempfile::NamedTempFile;
 
 mod args;
@@ -136,7 +136,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             .output()
             .expect("failed to execute nix-shell");
         if !exec.status.success() {
-            std::process::exit(exec.status.code().unwrap());
+            exit(exec.status.code().unwrap());
         }
         let mut env = deserealize_env(exec.stdout);
         env.remove(OsStr::new("PWD"));
@@ -166,7 +166,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             .output()
             .expect("failed to execute nix show-derivation");
         if !exec.status.success() {
-            std::process::exit(1);
+            exit(1);
         }
         let output = String::from_utf8(exec.stdout).expect("failed to decode");
         let output: serde_json::Value =
@@ -197,7 +197,7 @@ fn run_script(
         .envs(&env)
         .exec();
     eprintln!("cached-nix-shell: couldn't run: {:?}", exec);
-    unreachable!()
+    exit(1);
 }
 
 fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
@@ -328,7 +328,8 @@ fn main() {
                 nix_shell_args,
                 std::env::args_os().skip(1).collect(),
             );
-            std::process::exit(0);
         }
     }
+    eprintln!("Usage: cached-nix-shell SCRIPT [ARGS]...");
+    exit(1);
 }
