@@ -14,7 +14,10 @@ build-nix)
 	nix-build default.nix
 	;;
 test)
-	./tests/run.sh && make -C ./nix-trace test && echo ok
+	cargo test &&
+	./tests/run.sh &&
+	make -C ./nix-trace test &&
+	echo ok
 	;;
 *) exit 1;
 esac

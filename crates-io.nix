@@ -57,6 +57,22 @@ rec {
 
 
 # end
+# bytelines-2.2.2
+
+  crates.bytelines."2.2.2" = deps: { features?(features_.bytelines."2.2.2" deps {}) }: buildRustCrate {
+    crateName = "bytelines";
+    version = "2.2.2";
+    description = "Read input lines as byte slices for high efficiency";
+    authors = [ "Isaac Whitfield <iw@whitfin.io>" ];
+    edition = "2018";
+    sha256 = "06bq97715hsrwvyd48m4ncbm86j0iyv3pgli0q1v33kb3nf3x9sr";
+  };
+  features_.bytelines."2.2.2" = deps: f: updateFeatures f (rec {
+    bytelines."2.2.2".default = (f.bytelines."2.2.2".default or true);
+  }) [];
+
+
+# end
 # c2-chacha-0.2.3
 
   crates.c2_chacha."0.2.3" = deps: { features?(features_.c2_chacha."0.2.3" deps {}) }: buildRustCrate {
@@ -1248,30 +1264,6 @@ rec {
     (features_.itoa."${deps."serde_json"."1.0.44"."itoa"}" deps)
     (features_.ryu."${deps."serde_json"."1.0.44"."ryu"}" deps)
     (features_.serde."${deps."serde_json"."1.0.44"."serde"}" deps)
-  ];
-
-
-# end
-# shellwords-1.0.0
-
-  crates.shellwords."1.0.0" = deps: { features?(features_.shellwords."1.0.0" deps {}) }: buildRustCrate {
-    crateName = "shellwords";
-    version = "1.0.0";
-    description = "Manipulate strings according to the word parsing rules of the UNIX Bourne shell.";
-    authors = [ "Jimmy Cuadra <jimmy@jimmycuadra.com>" ];
-    sha256 = "102pql0nyky5dvvcak0skn1yswadsjblq52l3ymjb3n0n32ci2v6";
-    dependencies = mapFeatures features ([
-      (crates."lazy_static"."${deps."shellwords"."1.0.0"."lazy_static"}" deps)
-      (crates."regex"."${deps."shellwords"."1.0.0"."regex"}" deps)
-    ]);
-  };
-  features_.shellwords."1.0.0" = deps: f: updateFeatures f (rec {
-    lazy_static."${deps.shellwords."1.0.0".lazy_static}".default = true;
-    regex."${deps.shellwords."1.0.0".regex}".default = true;
-    shellwords."1.0.0".default = (f.shellwords."1.0.0".default or true);
-  }) [
-    (features_.lazy_static."${deps."shellwords"."1.0.0"."lazy_static"}" deps)
-    (features_.regex."${deps."shellwords"."1.0.0"."regex"}" deps)
   ];
 
 

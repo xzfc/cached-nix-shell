@@ -15,18 +15,19 @@ rec {
       edition = "2018";
       src = exclude [ ".git" "target" ] ./.;
       dependencies = mapFeatures features ([
+        (cratesIO.crates."bytelines"."${deps."cached_nix_shell"."0.1.0"."bytelines"}" deps)
         (cratesIO.crates."itertools"."${deps."cached_nix_shell"."0.1.0"."itertools"}" deps)
         (cratesIO.crates."nix"."${deps."cached_nix_shell"."0.1.0"."nix"}" deps)
         (cratesIO.crates."quale"."${deps."cached_nix_shell"."0.1.0"."quale"}" deps)
         (cratesIO.crates."regex"."${deps."cached_nix_shell"."0.1.0"."regex"}" deps)
         (cratesIO.crates."rust_crypto"."${deps."cached_nix_shell"."0.1.0"."rust_crypto"}" deps)
         (cratesIO.crates."serde_json"."${deps."cached_nix_shell"."0.1.0"."serde_json"}" deps)
-        (cratesIO.crates."shellwords"."${deps."cached_nix_shell"."0.1.0"."shellwords"}" deps)
         (cratesIO.crates."tempfile"."${deps."cached_nix_shell"."0.1.0"."tempfile"}" deps)
         (cratesIO.crates."xdg"."${deps."cached_nix_shell"."0.1.0"."xdg"}" deps)
       ]);
     };
     features_.cached_nix_shell."0.1.0" = deps: f: updateFeatures f (rec {
+      bytelines."${deps.cached_nix_shell."0.1.0".bytelines}".default = true;
       cached_nix_shell."0.1.0".default = (f.cached_nix_shell."0.1.0".default or true);
       itertools."${deps.cached_nix_shell."0.1.0".itertools}".default = true;
       nix."${deps.cached_nix_shell."0.1.0".nix}".default = true;
@@ -34,17 +35,16 @@ rec {
       regex."${deps.cached_nix_shell."0.1.0".regex}".default = true;
       rust_crypto."${deps.cached_nix_shell."0.1.0".rust_crypto}".default = true;
       serde_json."${deps.cached_nix_shell."0.1.0".serde_json}".default = true;
-      shellwords."${deps.cached_nix_shell."0.1.0".shellwords}".default = true;
       tempfile."${deps.cached_nix_shell."0.1.0".tempfile}".default = true;
       xdg."${deps.cached_nix_shell."0.1.0".xdg}".default = true;
     }) [
+      (cratesIO.features_.bytelines."${deps."cached_nix_shell"."0.1.0"."bytelines"}" deps)
       (cratesIO.features_.itertools."${deps."cached_nix_shell"."0.1.0"."itertools"}" deps)
       (cratesIO.features_.nix."${deps."cached_nix_shell"."0.1.0"."nix"}" deps)
       (cratesIO.features_.quale."${deps."cached_nix_shell"."0.1.0"."quale"}" deps)
       (cratesIO.features_.regex."${deps."cached_nix_shell"."0.1.0"."regex"}" deps)
       (cratesIO.features_.rust_crypto."${deps."cached_nix_shell"."0.1.0"."rust_crypto"}" deps)
       (cratesIO.features_.serde_json."${deps."cached_nix_shell"."0.1.0"."serde_json"}" deps)
-      (cratesIO.features_.shellwords."${deps."cached_nix_shell"."0.1.0"."shellwords"}" deps)
       (cratesIO.features_.tempfile."${deps."cached_nix_shell"."0.1.0"."tempfile"}" deps)
       (cratesIO.features_.xdg."${deps."cached_nix_shell"."0.1.0"."xdg"}" deps)
     ];
@@ -60,17 +60,18 @@ rec {
     memchr = "2.2.1";
   };
   deps.bitflags."1.2.1" = {};
+  deps.bytelines."2.2.2" = {};
   deps.c2_chacha."0.2.3" = {
     ppv_lite86 = "0.2.6";
   };
   deps.cached_nix_shell."0.1.0" = {
+    bytelines = "2.2.2";
     itertools = "0.8.2";
     nix = "0.16.0";
     quale = "1.0.0";
     regex = "1.3.1";
     rust_crypto = "0.2.36";
     serde_json = "1.0.44";
-    shellwords = "1.0.0";
     tempfile = "3.1.0";
     xdg = "2.2.0";
   };
@@ -160,10 +161,6 @@ rec {
     itoa = "0.4.4";
     ryu = "1.0.2";
     serde = "1.0.104";
-  };
-  deps.shellwords."1.0.0" = {
-    lazy_static = "1.4.0";
-    regex = "1.3.1";
   };
   deps.tempfile."3.1.0" = {
     cfg_if = "0.1.10";

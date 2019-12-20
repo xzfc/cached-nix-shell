@@ -12,6 +12,7 @@ use std::process::Command;
 use tempfile::NamedTempFile;
 
 mod args;
+mod shebang;
 mod trace;
 
 type EnvMap = BTreeMap<OsString, OsString>;
@@ -179,37 +180,6 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
     NixShellOutput { env, trace, drv }
 }
 
-// Parse script in the same way as nix-shell does.
-// Reference: src/nix-build/nix-build.cc:112
-fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
-    use std::io::BufRead;
-
-    let f = File::open(fname).ok()?; // File doesn't exists
-    let file = std::io::BufReader::new(&f);
-
-    let mut lines = file.lines().map(|l| l.unwrap());
-
-    if !lines.next()?.starts_with("#!") {
-        return None; // First line isn't shebang
-    }
-
-    let re = regex::Regex::new(r"^#!\s*nix-shell\s+(.*)$").unwrap();
-    let mut args = Vec::new();
-    for line in lines {
-        if let Some(caps) = re.captures(&line) {
-            let line = caps.get(1).unwrap().as_str();
-            // XXX: probably rust-shellwords isn't the same as shellwords()
-            //      defined in src/nix-build/nix-build.cc.
-            let words =
-                shellwords::split(line).expect("Can't shellwords::split");
-            args.extend(words);
-        }
-    }
-
-    // TODO: proper OsStrings
-    Some(args.into_iter().map(OsString::from).collect())
-}
-
 fn run_script(
     fname: OsString,
     nix_shell_args: Vec<OsString>,
@@ -352,7 +322,7 @@ fn main() {
 
     if argv.len() >= 2 {
         let fname = &argv[1];
-        if let Some(nix_shell_args) = parse_script(&fname) {
+        if let Some(nix_shell_args) = shebang::parse_script(&fname) {
             run_script(
                 fname.clone(),
                 nix_shell_args,
