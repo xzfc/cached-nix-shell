@@ -106,6 +106,12 @@ fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
 
     args.push(OsString::from("--run"));
     args.push(OsString::from("env -0"));
+
+    for path in x.path.iter() {
+        args.push(OsString::from("-I"));
+        args.push(path.clone());
+    }
+
     args.push(OsString::from("--"));
     args.extend(x.rest.clone());
 

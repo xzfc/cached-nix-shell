@@ -28,7 +28,7 @@ check_fast() { check "fast ($(cat tmp/time))"  grep -q "^0.0" tmp/time; }
 
 skip() { printf "\x1b[33m? skip %s\x1b[m\n" "$*"; }
 
-which cached-nix-shell > /dev/null || exit 1
+which cached-nix-shell time grep > /dev/null || exit 1
 
 trap 'rm -rf tmp' EXIT
 result=0
@@ -83,5 +83,8 @@ check_contains "some-var-value"
 
 run ./07-env-pure.sh
 check_contains "doesnt-have-some-var"
+
+run ./08-path.lua
+check_contains "aGVsbG8="
 
 exit $result

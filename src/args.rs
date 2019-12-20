@@ -5,6 +5,7 @@ pub struct Args {
     pub packages: bool,
     pub pure: bool,
     pub interpreter: OsString,
+    pub path: Vec<OsString>,
     pub rest: Vec<OsString>,
     pub raw: Vec<OsString>,
 }
@@ -15,6 +16,7 @@ impl Args {
             packages: false,
             pure: false,
             interpreter: OsString::from("bash"),
+            path: Vec::new(),
             rest: Vec::new(),
             raw: Vec::new(),
         };
@@ -37,6 +39,11 @@ impl Args {
                     Some(e) => e.clone(),
                     None => return None,
                 };
+            } else if arg == "-I" {
+                res.path.push(match it.next() {
+                    Some(e) => e.clone(),
+                    None => return None,
+                });
             } else if arg.as_bytes().first() == Some(&b'-') {
                 eprintln!("cached-nix-shell: unexpected arg `{:?}`", arg);
                 return None;
