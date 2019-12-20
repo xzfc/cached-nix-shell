@@ -7,17 +7,18 @@ rm -rf ~/.cache/cached-nix-shell
 
 run() {
 	rm -f tmp/time tmp/out
-	printf "\x1b[1mRunning %s\x1b[m\n" "$*"
+	printf "\33[1mRunning %s\33[m\n" "$*"
 	time -o tmp/time -f "%e" -- "$@" > tmp/out
 }
 
 check() {
-	local text=$1
+	local text
+	text=$1
 	shift
 	if "$@";then
-		printf "\x1b[32m+ %s\x1b[m\n" "$text"
+		printf "\33[32m+ %s\33[m\n" "$text"
 	else
-		printf "\x1b[31m- %s\x1b[m\n" "$text"
+		printf "\33[31m- %s\33[m\n" "$text"
 		result=1
 	fi
 }
@@ -26,7 +27,7 @@ check_contains() { check "contains $1"   grep -q "$1" tmp/out; }
 check_slow() { check "slow ($(cat tmp/time))"  grep -vq "^0.0" tmp/time; }
 check_fast() { check "fast ($(cat tmp/time))"  grep -q "^0.0" tmp/time; }
 
-skip() { printf "\x1b[33m? skip %s\x1b[m\n" "$*"; }
+skip() { printf "\33[33m? skip %s\33[m\n" "$*"; }
 
 which cached-nix-shell time grep > /dev/null || exit 1
 
