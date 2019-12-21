@@ -1377,6 +1377,22 @@ rec {
 
 
 # end
+# ufcs-0.1.0
+
+  crates.ufcs."0.1.0" = deps: { features?(features_.ufcs."0.1.0" deps {}) }: buildRustCrate {
+    crateName = "ufcs";
+    version = "0.1.0";
+    description = "Helper trait to call free functions using method call syntax";
+    authors = [ "xzfc" ];
+    edition = "2018";
+    sha256 = "0wf110pg75vj5fh2aih46lms0ph72m8nmgi8rbfrhny3jdy58y6h";
+  };
+  features_.ufcs."0.1.0" = deps: f: updateFeatures f (rec {
+    ufcs."0.1.0".default = (f.ufcs."0.1.0".default or true);
+  }) [];
+
+
+# end
 # void-1.0.2
 
   crates.void."1.0.2" = deps: { features?(features_.void."1.0.2" deps {}) }: buildRustCrate {

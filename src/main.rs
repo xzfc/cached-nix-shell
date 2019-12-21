@@ -2,14 +2,16 @@ use crate::args::Args;
 use crate::trace::Trace;
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{read_link, File};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
+use std::path::PathBuf;
 use std::process::{exit, Command};
 use tempfile::NamedTempFile;
+use ufcs::Pipe;
 
 mod args;
 mod shebang;
@@ -73,6 +75,28 @@ struct NixShellOutput {
     drv: String,
 }
 
+fn minimal_essential_path() -> OsString {
+    let required_binaries = &["nix-shell", "tar", "gzip"];
+
+    let clean_path_one = |binary: &&str| -> Option<PathBuf> {
+        Some(quale::which(binary)?.parent()?.to_path_buf())
+    };
+
+    let required_paths = required_binaries
+        .iter()
+        .filter_map(clean_path_one)
+        .collect::<HashSet<PathBuf>>();
+
+    // We can't just join_paths(required_paths) -- we need to preserve order
+    std::env::var_os("PATH")
+        .as_ref()
+        .unwrap()
+        .pipe(std::env::split_paths)
+        .filter(|path_item| required_paths.contains(path_item))
+        .pipe(std::env::join_paths)
+        .unwrap()
+}
+
 fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
     let mut args = Vec::new();
 
@@ -87,14 +111,8 @@ fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
                 clean_env.insert(OsString::from(var), val);
             }
         }
-        if let Some(nix_shell_path) =
-            (|| Some(quale::which("nix-shell")?.parent()?.to_path_buf()))()
-        {
-            clean_env.insert(
-                OsString::from("PATH"),
-                OsString::from(nix_shell_path.as_os_str()),
-            );
-        }
+        clean_env.insert(OsString::from("PATH"), minimal_essential_path());
+        eprintln!("PATH = {:?}", minimal_essential_path());
         clean_env
     };
 

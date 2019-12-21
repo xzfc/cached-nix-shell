@@ -23,6 +23,7 @@ rec {
         (cratesIO.crates."rust_crypto"."${deps."cached_nix_shell"."0.1.0"."rust_crypto"}" deps)
         (cratesIO.crates."serde_json"."${deps."cached_nix_shell"."0.1.0"."serde_json"}" deps)
         (cratesIO.crates."tempfile"."${deps."cached_nix_shell"."0.1.0"."tempfile"}" deps)
+        (cratesIO.crates."ufcs"."${deps."cached_nix_shell"."0.1.0"."ufcs"}" deps)
         (cratesIO.crates."xdg"."${deps."cached_nix_shell"."0.1.0"."xdg"}" deps)
       ]);
     };
@@ -36,6 +37,7 @@ rec {
       rust_crypto."${deps.cached_nix_shell."0.1.0".rust_crypto}".default = true;
       serde_json."${deps.cached_nix_shell."0.1.0".serde_json}".default = true;
       tempfile."${deps.cached_nix_shell."0.1.0".tempfile}".default = true;
+      ufcs."${deps.cached_nix_shell."0.1.0".ufcs}".default = true;
       xdg."${deps.cached_nix_shell."0.1.0".xdg}".default = true;
     }) [
       (cratesIO.features_.bytelines."${deps."cached_nix_shell"."0.1.0"."bytelines"}" deps)
@@ -46,6 +48,7 @@ rec {
       (cratesIO.features_.rust_crypto."${deps."cached_nix_shell"."0.1.0"."rust_crypto"}" deps)
       (cratesIO.features_.serde_json."${deps."cached_nix_shell"."0.1.0"."serde_json"}" deps)
       (cratesIO.features_.tempfile."${deps."cached_nix_shell"."0.1.0"."tempfile"}" deps)
+      (cratesIO.features_.ufcs."${deps."cached_nix_shell"."0.1.0"."ufcs"}" deps)
       (cratesIO.features_.xdg."${deps."cached_nix_shell"."0.1.0"."xdg"}" deps)
     ];
 
@@ -73,6 +76,7 @@ rec {
     rust_crypto = "0.2.36";
     serde_json = "1.0.44";
     tempfile = "3.1.0";
+    ufcs = "0.1.0";
     xdg = "2.2.0";
   };
   deps.cc."1.0.48" = {};
@@ -178,6 +182,7 @@ rec {
     redox_syscall = "0.1.56";
     winapi = "0.3.8";
   };
+  deps.ufcs."0.1.0" = {};
   deps.void."1.0.2" = {};
   deps.wasi."0.7.0" = {};
   deps.winapi."0.3.8" = {
