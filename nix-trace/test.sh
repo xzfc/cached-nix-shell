@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/bin/sh
 
 run() {
 	rm -f test-tmp/log
@@ -20,20 +20,20 @@ check() {
 	local name="$1" key="$2" val="$3"
 
 	if ! grep -qzFx -- "$key" test-tmp/log; then
-		printf "\x1b[31mFail: %s: can't find key\x1b[m\n" "$name"
+		printf "\33[31mFail: %s: can't find key\33[m\n" "$name"
 		return
 		result=1
 	fi
 
 	local actual_val="$(grep -zFx -A1 -- "$key" test-tmp/log | tail -zn1 | tr -d '\0')"
 	if [ "$val" != "$actual_val" ]; then
-		printf "\x1b[31mFail: %s: expected '%s', got '%s'\x1b[m\n" \
+		printf "\33[31mFail: %s: expected '%s', got '%s'\33[m\n" \
 			"$name" "$val" "$actual_val"
 		return
 		result=1
 	fi
 
-	printf "\x1b[32mOK: %s\x1b[m\n" "$name"
+	printf "\33[32mOK: %s\33[m\n" "$name"
 }
 
 rm -rf test-tmp
