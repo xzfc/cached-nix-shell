@@ -187,7 +187,7 @@ static int strcmp_qsort(const void *a, const void *b) {
 }
 
 static void dir_md5sum(char digest_s[static 33], DIR *dirp) {
-	// An dynamically growing array of strings
+	// A dynamically growing array of strings
 	size_t entries_total = 32, n = 0;
 	char **entries = calloc(entries_total, sizeof(char*));
 	if (entries == NULL)
@@ -204,16 +204,14 @@ static void dir_md5sum(char digest_s[static 33], DIR *dirp) {
 				abort();
 		}
 
-		entries[n] = malloc(strlen(ent->d_name) + 2);
-		if (entries[n] == NULL)
-			abort();
 		char ent_type = 
 			ent->d_type == DT_DIR ? 'd' :
 			ent->d_type == DT_LNK ? 'l' :
 			ent->d_type == DT_REG ? 'f' :
 			'u';
-		sprintf(entries[n], "%s=%c", ent->d_name, ent_type);
-		n++;
+		int l = asprintf(&entries[n++], "%s=%c", ent->d_name, ent_type);
+		if (l == -1)
+			abort();
 	}
 
 	qsort(entries, n, sizeof(char*), strcmp_qsort);

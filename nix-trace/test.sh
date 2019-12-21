@@ -40,6 +40,12 @@ rm -rf test-tmp
 mkdir test-tmp
 echo '"foo"' > test-tmp/test.nix
 
+x=""
+for i in {1..64};do
+	x=x$x
+	mkdir -p test-tmp/many-dirs/$x
+done
+
 run 'with import <unstable> {}; bash'
 check import-channel \
 	"s/nix/var/nix/profiles/per-user/root/channels/unstable" \
@@ -76,5 +82,10 @@ check builtins.readDir \
 run 'builtins.readDir "/nonexistent/readDir"'
 check builtins.readDir-ne \
 	"d/nonexistent/readDir" "-"
+
+
+run 'builtins.readDir ./test-tmp/many-dirs'
+check builtins.readDir-many-dirs \
+	"d$PWD/test-tmp/many-dirs" "$(dir_md5sum ./test-tmp/many-dirs)"
 
 exit $result
