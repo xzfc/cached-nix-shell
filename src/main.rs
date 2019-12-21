@@ -8,6 +8,7 @@ use std::fs::{read_link, File};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
+use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::{exit, Command};
 use tempfile::NamedTempFile;
@@ -112,7 +113,6 @@ fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
             }
         }
         clean_env.insert(OsString::from("PATH"), minimal_essential_path());
-        eprintln!("PATH = {:?}", minimal_essential_path());
         clean_env
     };
 
@@ -160,7 +160,13 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             .output()
             .expect("failed to execute nix-shell");
         if !exec.status.success() {
-            exit(exec.status.code().unwrap());
+            eprintln!("cached-nix-shell: nix-shell: {}", exec.status);
+            let code = exec
+                .status
+                .code()
+                .or_else(|| exec.status.signal().map(|x| x + 127))
+                .unwrap_or(255);
+            exit(code);
         }
         let mut env = deserealize_env(exec.stdout);
         env.remove(OsStr::new("PWD"));
