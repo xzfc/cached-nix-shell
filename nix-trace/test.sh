@@ -39,6 +39,7 @@ check() {
 rm -rf test-tmp
 mkdir test-tmp
 echo '"foo"' > test-tmp/test.nix
+: > test-tmp/empty
 
 x=""
 for i in {1..64};do
@@ -73,6 +74,11 @@ check builtins.readFile \
 run 'builtins.readFile "/nonexistent/readFile"'
 check builtins.readFile-ne \
 	"f/nonexistent/readFile" "-"
+
+run 'builtins.readFile ./test-tmp/empty'
+check builtins.readFile-empty \
+	"f$PWD/test-tmp/empty" \
+	"$(md5sum ./test-tmp/empty | head -c 32)"
 
 
 run 'builtins.readDir ./test-tmp'

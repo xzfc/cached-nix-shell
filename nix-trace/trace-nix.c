@@ -26,6 +26,13 @@ static DIR *(*real_opendir)(const char *name) = NULL;
 #define REAL(FUN) \
 	(real_##FUN == NULL ? (real_##FUN = dlsym(RTLD_NEXT, #FUN)) : real_##FUN)
 
+#define FATAL() \
+	do { \
+		fprintf(stderr, "nix-trace.c:%d: %s: %s\n", \
+			__LINE__, __func__, strerror(errno)); \
+		exit(2); \
+	} while(0)
+
 // Predeclarations
 
 static void dir_md5sum(char [static 33], DIR *);
@@ -70,11 +77,11 @@ int __lxstat(int ver, const char *path, struct stat *sb) {
 				buf_len = sb->st_size + 1;
 				buf = realloc(buf, buf_len);
 				if (buf == NULL)
-					abort();
+					FATAL();
 			}
 			ssize_t link_len = readlink(path, buf, sb->st_size);
 			if (link_len < 0 || link_len != sb->st_size)
-				abort();
+				FATAL();
 			buf[sb->st_size] = 0;
 			print_log('s', path, buf);
 			pthread_mutex_unlock(&mutex);
@@ -169,17 +176,23 @@ static void file_md5sum(char digest_s[static 33], int fd) {
 	struct stat stat_;
 	int rc = fstat(fd, &stat_);
 	if (rc != 0)
-		abort();
-	const char *mmaped =
-		mmap(NULL, stat_.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	if (mmaped == NULL)
-		abort();
+		FATAL();
+	char *mmaped = NULL;
+	if (stat_.st_size != 0) {
+		mmaped = mmap(NULL, stat_.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+		if (mmaped == MAP_FAILED)
+			FATAL();
+	}
 
 	unsigned char digest_b[16];
 	MD5(mmaped, stat_.st_size, digest_b);
 	md5_convert_digest(digest_s, digest_b);
 
-	munmap(NULL, stat_.st_size);
+	if (stat_.st_size != 0) {
+		rc = munmap(mmaped, stat_.st_size);
+		if (rc != 0)
+			FATAL();
+	}
 }
 
 static int strcmp_qsort(const void *a, const void *b) {
@@ -191,7 +204,7 @@ static void dir_md5sum(char digest_s[static 33], DIR *dirp) {
 	size_t entries_total = 32, n = 0;
 	char **entries = calloc(entries_total, sizeof(char*));
 	if (entries == NULL)
-		abort();
+		FATAL();
 
 	struct dirent *ent;
 	while (ent = readdir(dirp)) {
@@ -201,7 +214,7 @@ static void dir_md5sum(char digest_s[static 33], DIR *dirp) {
 		if (n+1 >= entries_total) {
 			entries = reallocarray(entries, entries_total *= 2, sizeof(char*));
 			if (entries == NULL)
-				abort();
+				FATAL();
 		}
 
 		char ent_type = 
@@ -211,7 +224,7 @@ static void dir_md5sum(char digest_s[static 33], DIR *dirp) {
 			'u';
 		int l = asprintf(&entries[n++], "%s=%c", ent->d_name, ent_type);
 		if (l == -1)
-			abort();
+			FATAL();
 	}
 
 	qsort(entries, n, sizeof(char*), strcmp_qsort);
