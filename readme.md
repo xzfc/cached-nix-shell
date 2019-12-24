@@ -1,5 +1,6 @@
 # cached-nix-shell
 
+[![Build Statis](https://img.shields.io/github/workflow/status/xzfc/cached-nix-shell/Test/master?logo=github)](https://github.com/xzfc/cached-nix-shell/actions?query=workflow%3ATest+branch%3Amaster)
 
 ## Problem
 
