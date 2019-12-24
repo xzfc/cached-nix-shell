@@ -1,0 +1,16 @@
+name: "Test"
+on:
+  pull_request:
+  push:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: cachix/install-nix-action@v6
+    - uses: cachix/cachix-action@v3
+      with:
+        name: xzfc
+        signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+    - name: Install and test
+      run: rm -f result*; nix-env -i -f default.nix && ./tests/run.sh
