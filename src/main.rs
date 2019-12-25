@@ -151,6 +151,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
         let exec = Command::new("nix-shell")
             .args(&inp.args)
             .stderr(std::process::Stdio::inherit())
+            .current_dir(&inp.pwd)
             .env_clear()
             .envs(&inp.env)
             .env("LD_PRELOAD", env!("CARGO_TRACE_NIX_SO"))
