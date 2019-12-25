@@ -4,6 +4,7 @@ use std::os::unix::ffi::OsStrExt;
 pub struct Args {
     pub packages: bool,
     pub pure: bool,
+    pub attr_paths: Vec<OsString>,
     pub interpreter: OsString,
     pub path: Vec<OsString>,
     pub rest: Vec<OsString>,
@@ -16,6 +17,7 @@ impl Args {
         let mut res = Args {
             packages: false,
             pure: false,
+            attr_paths: Vec::new(),
             interpreter: OsString::from("bash"),
             path: Vec::new(),
             rest: Vec::new(),
@@ -25,11 +27,7 @@ impl Args {
         let mut it = args.iter();
         while let Some(arg) = it.next() {
             if arg == "--attr" || arg == "-A" {
-                eprintln!(
-                    "cached-nix-shell: option not implemented: {:?}",
-                    arg
-                );
-                return None;
+                res.attr_paths.push(it.next()?.clone());
             } else if arg == "--pure" {
                 res.pure = true;
             } else if arg == "--impure" {

@@ -142,6 +142,11 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
     args.push(OsString::from("--run"));
     args.push(OsString::from("env -0"));
 
+    for attr_path in x.attr_paths.iter() {
+        args.push(OsString::from("--attr"));
+        args.push(attr_path.clone());
+    }
+
     for path in x.path.iter() {
         args.push(OsString::from("-I"));
         args.push(path.clone());
