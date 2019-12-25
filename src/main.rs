@@ -242,7 +242,7 @@ fn run_from_args(args: Vec<OsString>) {
     let args = Args::parse(args, false).expect("args");
 
     let nix_shell_pwd = if args.packages {
-        OsStr::new("/var/empty").to_os_string()
+        OsString::from(env!("CARGO_VAR_EMPTY"))
     } else {
         if let Some(arg) = args.rest.first() {
             absolute_dirname(arg)

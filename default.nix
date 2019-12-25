@@ -14,5 +14,7 @@ in (cargo.cached_nix_shell {}).overrideAttrs(a: rec {
 
     rm $out/bin/*.d $out/lib/link $out/lib/cached-nix-shell.opt
     rm -r $out/lib/cached-nix-shell
+
+    mkdir -p $out/var/empty
   '';
 })
