@@ -118,8 +118,6 @@ fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
 
     if x.packages {
         args.push(OsString::from("--packages"));
-    } else {
-        panic!("Unimplemented, you should use --packages");
     }
 
     args.push(OsString::from("--run"));

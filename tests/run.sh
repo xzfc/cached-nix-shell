@@ -85,7 +85,10 @@ check_contains "some-var-value"
 run ./07-env-pure.sh
 check_contains "doesnt-have-some-var"
 
-run ./08-path.lua
+run ./08-with_-I.lua
 check_contains "aGVsbG8="
+
+run ./09-without_--packages.lua
+check_contains "Lua.org"
 
 exit $result
