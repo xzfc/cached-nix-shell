@@ -59,7 +59,7 @@ cached-nix-shell ./test.py
 The following situations are covered:
 
 * `builtins.readFile` is used
-* `builtins.readDir` is used
+* ~~`builtins.readDir` is used~~ TODO
 * `import ./file.nix` is used
 * updating `/etc/nix/nix.conf` or `~/.config/nix/nix.conf`
 * updating nix channels
