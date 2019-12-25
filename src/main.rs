@@ -3,6 +3,7 @@ use crate::trace::Trace;
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
 use std::collections::{BTreeMap, HashSet};
+use std::env::current_dir;
 use std::ffi::{OsStr, OsString};
 use std::fs::{read_link, File};
 use std::io::{Read, Write};
@@ -98,7 +99,25 @@ fn minimal_essential_path() -> OsString {
         .unwrap()
 }
 
-fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
+fn absolute_dirname(script_fname: &OsStr) -> OsString {
+    std::path::PathBuf::from(script_fname)
+        .parent()
+        .expect("Can't get script dirname")
+        .pipe(|parent| {
+            if parent.is_absolute() {
+                parent.as_os_str().to_os_string()
+            } else {
+                // We do not use PathBuf::canonicalize() here since we do not
+                // want symlink resolving.
+                current_dir()
+                    .expect("Can't get cwd")
+                    .join(parent)
+                    .into_os_string()
+            }
+        })
+}
+
+fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
     let mut args = Vec::new();
 
     args.push(OsString::from("--pure"));
@@ -131,17 +150,7 @@ fn args_to_inp(script_fname: &OsStr, x: &Args) -> NixShellInput {
     args.push(OsString::from("--"));
     args.extend(x.rest.clone());
 
-    NixShellInput {
-        pwd: std::path::PathBuf::from(script_fname)
-            .parent()
-            .expect("Can't get script dirname")
-            .canonicalize()
-            .expect("Can't canonicalize script dirname")
-            .as_os_str()
-            .to_os_string(),
-        env,
-        args,
-    }
+    NixShellInput { pwd, env, args }
 }
 
 fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
@@ -214,14 +223,45 @@ fn run_script(
     nix_shell_args: Vec<OsString>,
     script_args: Vec<OsString>,
 ) {
-    let nix_shell_args = Args::parse(nix_shell_args).expect("p");
-    let inp = args_to_inp(&fname, &nix_shell_args);
+    let nix_shell_args = Args::parse(nix_shell_args, true).expect("args");
+    let inp = args_to_inp(absolute_dirname(&fname), &nix_shell_args);
     let env = cached_shell_env(nix_shell_args.pure, &inp);
 
     let mut interpreter_args = script_args;
     interpreter_args.insert(0, fname);
     let exec = Command::new(nix_shell_args.interpreter)
         .args(interpreter_args)
+        .env_clear()
+        .envs(&env)
+        .exec();
+    eprintln!("cached-nix-shell: couldn't run: {:?}", exec);
+    exit(1);
+}
+
+fn run_from_args(args: Vec<OsString>) {
+    let args = Args::parse(args, false).expect("args");
+
+    let nix_shell_pwd = if args.packages {
+        OsStr::new("/var/empty").to_os_string()
+    } else {
+        if let Some(arg) = args.rest.first() {
+            absolute_dirname(arg)
+        } else {
+            // nix-shell will use ./shell.nix or ./default.nix
+            current_dir().expect("Can't get cwd").into_os_string()
+        }
+    };
+
+    let inp = args_to_inp(nix_shell_pwd, &args);
+    let env = cached_shell_env(args.pure, &inp);
+
+    let bash_args = match args.run {
+        Some(run) => vec![OsString::from("-c"), run],
+        None => vec![],
+    };
+
+    let exec = Command::new("bash")
+        .args(bash_args)
         .env_clear()
         .envs(&env)
         .exec();
@@ -359,6 +399,5 @@ fn main() {
             );
         }
     }
-    eprintln!("Usage: cached-nix-shell SCRIPT [ARGS]...");
-    exit(1);
+    run_from_args(std::env::args_os().skip(1).collect());
 }

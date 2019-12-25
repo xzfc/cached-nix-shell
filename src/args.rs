@@ -8,10 +8,11 @@ pub struct Args {
     pub path: Vec<OsString>,
     pub rest: Vec<OsString>,
     pub raw: Vec<OsString>,
+    pub run: Option<OsString>,
 }
 
 impl Args {
-    pub fn parse(args: Vec<OsString>) -> Option<Args> {
+    pub fn parse(args: Vec<OsString>, in_shebang: bool) -> Option<Args> {
         let mut res = Args {
             packages: false,
             pure: false,
@@ -19,6 +20,7 @@ impl Args {
             path: Vec::new(),
             rest: Vec::new(),
             raw: Vec::new(),
+            run: None,
         };
         let mut it = args.iter();
         while let Some(arg) = it.next() {
@@ -34,16 +36,12 @@ impl Args {
                 res.pure = false;
             } else if arg == "--packages" || arg == "-p" {
                 res.packages = true;
-            } else if arg == "-i" {
-                res.interpreter = match it.next() {
-                    Some(e) => e.clone(),
-                    None => return None,
-                };
+            } else if arg == "-i" && in_shebang {
+                res.interpreter = it.next()?.clone();
             } else if arg == "-I" {
-                res.path.push(match it.next() {
-                    Some(e) => e.clone(),
-                    None => return None,
-                });
+                res.path.push(it.next()?.clone());
+            } else if (arg == "--run" || arg == "--command") && !in_shebang {
+                res.run = Some(it.next()?.clone());
             } else if arg.as_bytes().first() == Some(&b'-') {
                 eprintln!("cached-nix-shell: unexpected arg `{:?}`", arg);
                 return None;

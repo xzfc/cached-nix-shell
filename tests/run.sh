@@ -91,4 +91,16 @@ check_contains "aGVsbG8="
 run ./09-without_--packages.lua
 check_contains "Lua.org"
 
+run cached-nix-shell -p lua --run 'lua -v'
+check_contains "Lua.org"
+check_slow
+
+run cached-nix-shell -p lua --run 'lua -v | rev'
+check_contains "gro.auL"
+check_fast
+
+run cached-nix-shell -p luajit --run 'lua -v'
+check_contains "http://luajit.org/"
+check_slow
+
 exit $result
