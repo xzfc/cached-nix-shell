@@ -6,6 +6,12 @@ run() {
 		nix-shell --run : -p -- "$@" 2>/dev/null
 }
 
+run_without_p() {
+	rm -f test-tmp/log
+	LD_PRELOAD=$PWD/build/trace-nix.so TRACE_NIX=test-tmp/log \
+		nix-shell --run : -- "$@" 2>/dev/null
+}
+
 result=0
 
 dir_md5sum() {
@@ -93,5 +99,11 @@ check builtins.readDir-ne \
 run 'builtins.readDir ./test-tmp/many-dirs'
 check builtins.readDir-many-dirs \
 	"d$PWD/test-tmp/many-dirs" "$(dir_md5sum ./test-tmp/many-dirs)"
+
+run_without_p
+check implicit:shell.nix \
+	"s$PWD/shell.nix" "-"
+check implicit:default.nix \
+	"s$PWD/default.nix" "-"
 
 exit $result

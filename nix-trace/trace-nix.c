@@ -18,6 +18,7 @@
 
 static pthread_mutex_t mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 static FILE *log_f = NULL;
+static const char *pwd = NULL;
 
 static int (*real___lxstat)(int ver, const char *path, struct stat *buf) = NULL;
 static int (*real_open)(const char *path, int flags, ...) = NULL;
@@ -39,7 +40,6 @@ static void dir_md5sum(char [static 33], DIR *);
 static int enable(const char *);
 static void file_md5sum(char [static 33], int);
 static void md5_convert_digest(char [static 33], const unsigned char [static 16]);
-static void print_log_old(char, const char *);
 static void print_log(char, const char *, const char *);
 static int strcmp_qsort(const void *, const void *);
 
@@ -58,6 +58,9 @@ static void __attribute__((constructor)) init() {
 				strerror(errno));
 			errno = 0;
 		}
+		pwd = get_current_dir_name();
+		if (pwd == NULL)
+			FATAL();
 	}
 	unsetenv("TRACE_NIX");
 }
@@ -130,7 +133,7 @@ DIR *opendir(const char *path) {
 ////////////////////////////////////////////////////////////////////////////////
 
 static int enable(const char *path) {
-	if (log_f == NULL || *path != '/')
+	if (log_f == NULL || (*path != '/' && strcmp(path, "shell.nix")))
 		return 0;
 
 	static const char *ignored_paths[] = {
@@ -156,18 +159,16 @@ static int enable(const char *path) {
 	return 1;
 }
 
-static void print_log_old(char mode, const char *path) {
-	if (!enable(path))
-		return;
-	pthread_mutex_lock(&mutex);
-	fprintf(log_f, "%c%s%c", mode, path, (char)0);
-	fflush(log_f);
-	pthread_mutex_unlock(&mutex);
-}
-
 static void print_log(char op, const char *path, const char *result) {
 	pthread_mutex_lock(&mutex);
-	fprintf(log_f, "%c%s%c%s%c", op, path, (char)0, result, (char)0);
+	fprintf(
+		log_f,
+		"%c" "%s%s" "%s%c" "%s%c",
+		op,
+		path[0] == '/' ? "" : pwd, path[0] == '/' ? "" : "/",
+		path, (char)0,
+		result, (char)0
+	);
 	fflush(log_f);
 	pthread_mutex_unlock(&mutex);
 }
