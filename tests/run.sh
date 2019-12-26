@@ -91,6 +91,18 @@ check_contains "aGVsbG8="
 run ./09-without_--packages.lua
 check_contains "Lua.org"
 
+run cached-nix-shell 09-lua.nix --run 'lua -v'
+check_contains "Lua.org"
+check_fast
+
+run cached-nix-shell ./09-lua.nix --run 'lua -v'
+check_contains "Lua.org"
+check_fast
+
+run env --chdir .. cached-nix-shell tests/09-lua.nix --run 'lua -v'
+check_contains "Lua.org"
+check_fast
+
 run ./10-with_--attr.sh
 check_contains "i-am-foo"
 check_contains "cant-find-bar"
