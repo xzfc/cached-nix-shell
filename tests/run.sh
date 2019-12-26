@@ -88,7 +88,7 @@ check_contains "doesnt-have-some-var"
 run ./08-with_-I.lua
 check_contains "aGVsbG8="
 
-run ./09-without_--packages.lua
+run ./09-without_--packages.sh
 check_contains "Lua.org"
 
 run cached-nix-shell 09-lua.nix --run 'lua -v'
