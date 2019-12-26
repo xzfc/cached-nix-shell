@@ -1,26 +1,10 @@
 # cached-nix-shell
+[![Build Status](https://img.shields.io/github/workflow/status/xzfc/cached-nix-shell/Test/master?logo=github)](https://github.com/xzfc/cached-nix-shell/actions?query=workflow%3ATest+branch%3Amaster)
+![License](https://img.shields.io/badge/license-Unlicense%20OR%20MIT-blue)
 
-[![Build Statis](https://img.shields.io/github/workflow/status/xzfc/cached-nix-shell/Test/master?logo=github)](https://github.com/xzfc/cached-nix-shell/actions?query=workflow%3ATest+branch%3Amaster)
+`cached-nix-shell` is a caching layer for `nix-shell` featuring instant startup time on subsequent runs.
 
-## Problem
-
-Having a single file containing both code and its dependencies is a useful feature provided by `nix-shell`. However long startup times make it unsuitable for some use-cases.
-
-This example script took 0.34 seconds to run on my machine:
-
-```python
-#! /usr/bin/env nix-shell
-#! nix-shell -i python -p python
-print "Hello world!"
-```
-
-Scripts with more dependencies can take a couple of seconds just to set up the environment.
-
-## Solution
-
-`cached-nix-shell` stores environment variables set up by `nix-shell` and reuses them on subsequent runs.
-It [traces](./nix-trace) which files are read by `nix` during an evaluation, and performs a proper cache invalidation if any of the used files are changed.
-The cache is stored in `~/.cache/cached-nix-shell/`.
+It supports NixOS and Linux.
 
 ## Installation
 
@@ -34,32 +18,39 @@ Just replace `nix-shell` with `cached-nix-shell` in the shebang line:
 
 ```python
 #! /usr/bin/env cached-nix-shell
-#! nix-shell -i python -p python
-print "Hello world!"
-```
-
-```
-$ time ./hello.py # first run; no cache used
-cached-nix-shell: updating cache
-Hello world!
-./hello.py  0.34s user 0.07s system 91% cpu 0.458 total
-$ time ./hello.py
-Hello world!
-./hello.py  0.02s user 0.01s system 95% cpu 0.033 total
+#! nix-shell -i python3 -p python
+print("Hello, World!")
 ```
 
 Alternatively, call `cached-nix-shell` directly:
 
 ```sh
-cached-nix-shell ./test.py
+$ cached-nix-shell ./hello.py
+$ cached-nix-shell -p python3 --run 'python --version'
 ```
 
-## Cache invalidation
+## Performance
+
+```
+$ time ./hello.py # first run; no cache used
+cached-nix-shell: updating cache
+Hello, World!
+./hello.py  0.33s user 0.06s system 91% cpu 0.435 total
+$ time ./hello.py
+Hello, World!
+./hello.py  0.02s user 0.01s system 97% cpu 0.029 total
+```
+
+## Caching and cache invalidation
+
+`cached-nix-shell` stores environment variables set up by `nix-shell` and reuses them on subsequent runs.
+It [traces](./nix-trace) which files are read by `nix` during an evaluation, and performs a proper cache invalidation if any of the used files are changed.
+The cache is stored in `~/.cache/cached-nix-shell/`.
 
 The following situations are covered:
 
 * `builtins.readFile` is used
-* ~~`builtins.readDir` is used~~ TODO
+* ~~`builtins.readDir` is used~~ TODO (cache invalidated immediately)
 * `import ./file.nix` is used
 * updating `/etc/nix/nix.conf` or `~/.config/nix/nix.conf`
 * updating nix channels
@@ -67,18 +58,17 @@ The following situations are covered:
 
 The following situations aren't handled by `cached-nix-shell` and may lead to staled cache:
 
-* `builtins.fetchurl` is used (e.g. in [nixpkgs-mozilla])
+* `builtins.fetchurl` or other network builtins are used (e.g. in [nixpkgs-mozilla])
 
 [nixpkgs-mozilla]: https://github.com/mozilla/nixpkgs-mozilla
 
 ## Related
 
 * https://discourse.nixos.org/t/speeding-up-nix-shell-shebang/4048
-* [lorri](https://github.com/target/lorri), a `nix-shell` replacement for project development
-  * [lorri #167](https://github.com/target/lorri/issues/167)
+* There are related projects focused on interactive `nix-shell` rather than scripts:
+  * [direnv](https://direnv.net/) with [use_nix](https://github.com/direnv/direnv/wiki/Nix)
+  * [Cached and Persistent Nix shell with direnv integration](https://gist.github.com/mbbx6spp/731076cb8fc620b064b8e5b28fb1c796)
+  * [lorri](https://github.com/target/lorri), a `nix-shell` replacement for project development
+    * [lorri #167](https://github.com/target/lorri/issues/167)
 
-## License
-
-This project is dual-licensed under the [Unlicense](https://unlicense.org) and MIT licenses.
-
-You may use this code under the terms of either license.
+* [https://github.com/rycee/home-manager/issues/447](https://github.com/rycee/home-manager/issues/447)
