@@ -1,4 +1,5 @@
 use crate::args::Args;
+use crate::path_clean::PathClean;
 use crate::trace::Trace;
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
@@ -16,6 +17,7 @@ use tempfile::NamedTempFile;
 use ufcs::Pipe;
 
 mod args;
+mod path_clean;
 mod shebang;
 mod trace;
 
@@ -112,6 +114,7 @@ fn absolute_dirname(script_fname: &OsStr) -> OsString {
                 current_dir()
                     .expect("Can't get cwd")
                     .join(parent)
+                    .clean()
                     .into_os_string()
             }
         })
