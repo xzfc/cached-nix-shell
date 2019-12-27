@@ -67,6 +67,16 @@ fn serialize_vecs(vecs: &[&[u8]]) -> Vec<u8> {
     vec
 }
 
+fn unwrap_or_errx<T>(x: Result<T, String>) -> T {
+    match x {
+        Ok(x) => x,
+        Err(x) => {
+            eprintln!("cached-nix-shell: {}", x);
+            exit(1)
+        }
+    }
+}
+
 struct NixShellInput {
     pwd: OsString,
     env: EnvMap,
@@ -144,17 +154,7 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
 
     args.push(OsString::from("--run"));
     args.push(OsString::from("env -0"));
-
-    for attr_path in x.attr_paths.iter() {
-        args.push(OsString::from("--attr"));
-        args.push(attr_path.clone());
-    }
-
-    for path in x.path.iter() {
-        args.push(OsString::from("-I"));
-        args.push(path.clone());
-    }
-
+    args.extend(x.other_kw.clone());
     args.push(OsString::from("--"));
     args.extend(x.rest.clone());
 
@@ -231,7 +231,7 @@ fn run_script(
     nix_shell_args: Vec<OsString>,
     script_args: Vec<OsString>,
 ) {
-    let nix_shell_args = Args::parse(nix_shell_args, true).expect("args");
+    let nix_shell_args = Args::parse(nix_shell_args, true).pipe(unwrap_or_errx);
     let inp = args_to_inp(absolute_dirname(&fname), &nix_shell_args);
     let env = cached_shell_env(nix_shell_args.pure, &inp);
 
@@ -247,7 +247,7 @@ fn run_script(
 }
 
 fn run_from_args(args: Vec<OsString>) {
-    let mut args = Args::parse(args, false).expect("args");
+    let mut args = Args::parse(args, false).pipe(unwrap_or_errx);
 
     let nix_shell_pwd = if args.packages {
         OsString::from(env!("CARGO_VAR_EMPTY"))
