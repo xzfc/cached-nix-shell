@@ -267,13 +267,14 @@ fn run_from_args(args: Vec<OsString>) {
     let inp = args_to_inp(nix_shell_pwd, &args);
     let env = cached_shell_env(args.pure, &inp);
 
-    let bash_args = match args.run {
-        Some(run) => vec![OsString::from("-c"), run],
-        None => vec![],
+    let (cmd, cmd_args) = match args.run {
+        args::RunMode::InteractiveShell => ("bash".into(), vec![]),
+        args::RunMode::Shell(cmd) => ("bash".into(), vec!["-c".into(), cmd]),
+        args::RunMode::Exec(cmd, cmd_args) => (cmd, cmd_args),
     };
 
-    let exec = Command::new("bash")
-        .args(bash_args)
+    let exec = Command::new(cmd)
+        .args(cmd_args)
         .env_clear()
         .envs(&env)
         .exec();
