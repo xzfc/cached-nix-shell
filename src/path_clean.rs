@@ -31,7 +31,7 @@ impl PathClean for Path {
                 res.push(elem);
             }
         }
-        if res.len() == 0 {
+        if res.is_empty() {
             res.push(OsStr::new("."));
         }
         res.into_iter().collect()

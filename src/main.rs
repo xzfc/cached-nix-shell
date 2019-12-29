@@ -251,19 +251,17 @@ fn run_from_args(args: Vec<OsString>) {
 
     let nix_shell_pwd = if args.packages {
         OsString::from(env!("CARGO_VAR_EMPTY"))
+    } else if let Some(arg) = args.rest.first_mut() {
+        let pwd = absolute_dirname(arg);
+        *arg = PathBuf::from(&arg)
+            .file_name()
+            .unwrap()
+            .pipe(|x| PathBuf::from(".").join(x))
+            .into_os_string();
+        pwd
     } else {
-        if let Some(arg) = args.rest.first_mut() {
-            let pwd = absolute_dirname(arg);
-            *arg = PathBuf::from(&arg)
-                .file_name()
-                .unwrap()
-                .pipe(|x| PathBuf::from(".").join(x))
-                .into_os_string();
-            pwd
-        } else {
-            // nix-shell will use ./shell.nix or ./default.nix
-            current_dir().expect("Can't get cwd").into_os_string()
-        }
+        // nix-shell will use ./shell.nix or ./default.nix
+        current_dir().expect("Can't get cwd").into_os_string()
     };
 
     let inp = args_to_inp(nix_shell_pwd, &args);
