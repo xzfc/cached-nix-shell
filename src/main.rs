@@ -90,15 +90,26 @@ struct NixShellOutput {
 }
 
 fn minimal_essential_path() -> OsString {
-    let required_binaries = &["nix-shell", "tar", "gzip"];
+    let required_binaries = ["nix-shell", "tar", "gzip"];
 
-    let clean_path_one = |binary: &&str| -> Option<PathBuf> {
-        Some(quale::which(binary)?.parent()?.to_path_buf())
+    let which_dir = |binary: &&str| -> Option<PathBuf> {
+        std::env::var_os("PATH")
+            .as_ref()
+            .unwrap()
+            .pipe(std::env::split_paths)
+            .filter(|dir| {
+                nix::unistd::access(
+                    &dir.join(binary),
+                    nix::unistd::AccessFlags::X_OK,
+                )
+                .is_ok()
+            })
+            .next()
     };
 
     let required_paths = required_binaries
         .iter()
-        .filter_map(clean_path_one)
+        .filter_map(which_dir)
         .collect::<HashSet<PathBuf>>();
 
     // We can't just join_paths(required_paths) -- we need to preserve order

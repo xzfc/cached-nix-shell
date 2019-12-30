@@ -498,28 +498,6 @@ rec {
 
 
 # end
-# quale-1.0.0
-
-  crates.quale."1.0.0" = deps: { features?(features_.quale."1.0.0" deps {}) }: buildRustCrate {
-    crateName = "quale";
-    version = "1.0.0";
-    description = "A Rust port of the `which` utility. Locates an executable in the user’s path.";
-    authors = [ "Corey Farwell <coreyf@rwell.org>" ];
-    sha256 = "1m8fkbjp006ihqsl93b4w3xqxwdgbbdva8qqlqn95nn2ww576bjm";
-    libPath = "lib.rs";
-    dependencies = mapFeatures features ([
-      (crates."libc"."${deps."quale"."1.0.0"."libc"}" deps)
-    ]);
-  };
-  features_.quale."1.0.0" = deps: f: updateFeatures f (rec {
-    libc."${deps.quale."1.0.0".libc}".default = true;
-    quale."1.0.0".default = (f.quale."1.0.0".default or true);
-  }) [
-    (features_.libc."${deps."quale"."1.0.0"."libc"}" deps)
-  ];
-
-
-# end
 # rand-0.3.23
 
   crates.rand."0.3.23" = deps: { features?(features_.rand."0.3.23" deps {}) }: buildRustCrate {
