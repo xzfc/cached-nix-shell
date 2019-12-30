@@ -186,6 +186,8 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
         }
         let mut env = deserealize_env(exec.stdout);
         env.remove(OsStr::new("PWD"));
+        //env.remove(OsStr::new("SSL_CERT_FILE"));
+        //env.remove(OsStr::new("NIX_SSL_CERT_FILE"));
         env
     };
 
@@ -322,6 +324,10 @@ fn merge_env(mut env: EnvMap) -> EnvMap {
     let mut delim = EnvMap::new();
     delim.insert(OsString::from("PATH"), OsString::from(":"));
     delim.insert(OsString::from("HOST_PATH"), OsString::from(":"));
+
+    // Set to "/no-cert-file.crt" by setup.sh for pure envs.
+    env.remove(OsStr::new("SSL_CERT_FILE"));
+    env.remove(OsStr::new("NIX_SSL_CERT_FILE"));
 
     for (var, val) in std::env::vars_os() {
         env.entry(var.clone())
