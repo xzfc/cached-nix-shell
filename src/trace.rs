@@ -3,7 +3,7 @@ use crypto::md5::Md5;
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::File;
+use std::fs::{read_dir, File};
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 
@@ -73,7 +73,8 @@ fn check_item_updated(k: &[u8], v: &[u8]) -> bool {
             Err(_) => OsStr::new("-"),
         },
         Some(b'd') => {
-            OsStr::new("???") // TODO
+            tmp = hash_dir(fname);
+            tmp.as_os_str()
         }
         _ => panic!("Unexpected"),
     };
@@ -88,4 +89,35 @@ fn check_item_updated(k: &[u8], v: &[u8]) -> bool {
         return true;
     }
     false
+}
+
+fn hash_dir(fname: &OsStr) -> OsString {
+    let entries = match read_dir(fname) {
+        Ok(x) => x,
+        Err(_) => return OsString::from("-"),
+    };
+
+    let mut digest = Md5::new();
+    entries
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let typ = match entry.file_type() {
+                Ok(typ) => {
+                    if typ.is_symlink() {
+                        b'l'
+                    } else if typ.is_file() {
+                        b'f'
+                    } else if typ.is_dir() {
+                        b'd'
+                    } else {
+                        b'u'
+                    }
+                }
+                Err(_) => return None,
+            };
+            Some([entry.file_name().as_bytes(), &[b'=', typ, 0]].concat())
+        })
+        .sorted()
+        .for_each(|entry| digest.input(&entry));
+    OsString::from(digest.result_str())
 }

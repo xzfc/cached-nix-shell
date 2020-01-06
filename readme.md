@@ -50,7 +50,7 @@ The cache is stored in `~/.cache/cached-nix-shell/`.
 The following situations are covered:
 
 * `builtins.readFile` is used
-* ~~`builtins.readDir` is used~~ TODO (cache invalidated immediately)
+* `builtins.readDir` is used
 * `import ./file.nix` is used
 * updating `/etc/nix/nix.conf` or `~/.config/nix/nix.conf`
 * updating nix channels

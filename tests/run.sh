@@ -107,6 +107,23 @@ run ./10-with_--attr.sh
 check_contains "i-am-foo"
 check_contains "cant-find-bar"
 
+mkdir -p tmp/dir/a
+ln -s c tmp/dir/b
+touch tmp/dir/c
+run cached-nix-shell ./11-readDir.nix --run 'echo $x'
+check_contains '{"a":"directory","b":"symlink","c":"regular"}'
+check_slow
+
+run cached-nix-shell ./11-readDir.nix --run 'echo $x'
+check_contains '{"a":"directory","b":"symlink","c":"regular"}'
+check_fast
+
+rm tmp/dir/b
+touch tmp/dir/b
+run cached-nix-shell ./11-readDir.nix --run 'echo $x'
+check_contains '{"a":"directory","b":"regular","c":"regular"}'
+check_slow
+
 run cached-nix-shell -p lua --run 'lua -v'
 check_contains "Lua.org"
 check_slow
