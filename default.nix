@@ -1,7 +1,15 @@
 { pkgs ? import <nixpkgs> {} }:
 let
+  buildRustCrateHelpers = pkgs.buildRustCrateHelpers // {
+    # https://github.com/NixOS/nixpkgs/pull/75563#pullrequestreview-338868263
+    exclude = excludedFiles: src: builtins.filterSource (path: type:
+      pkgs.lib.all (f:
+         !pkgs.lib.strings.hasPrefix (toString (src + ("/" + f))) path
+      ) excludedFiles
+    ) src;
+  };
   cratesIO = pkgs.callPackage ./crates-io.nix {};
-  cargo = pkgs.callPackage ./Cargo.nix { inherit cratesIO; };
+  cargo = pkgs.callPackage ./Cargo.nix { inherit cratesIO buildRustCrateHelpers; };
 in (cargo.cached_nix_shell {}).overrideAttrs(a: rec {
   name = "${pname}-${version}";
   pname = "cached-nix-shell";
