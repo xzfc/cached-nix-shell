@@ -420,8 +420,15 @@ fn main() {
     let argv: Vec<OsString> = std::env::args_os().collect();
 
     if argv.len() == 2 && argv[1] == "--version" {
-        // TODO: print git revision
-        println!("cached-nix-shell: {}", env!("CARGO_PKG_VERSION"));
+        let git_commit = match option_env!("CARGO_GIT_COMMIT") {
+            Some(x) => format!("-{}", x),
+            None => format!(""),
+        };
+        println!(
+            "cached-nix-shell: {}{}",
+            env!("CARGO_PKG_VERSION"),
+            git_commit
+        );
         let exec = Command::new("nix-shell").arg("--version").exec();
         eprintln!(
             "cached-nix-shell: couldn't run nix-shell --version {:?}",
