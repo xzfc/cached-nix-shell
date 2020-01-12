@@ -1,0 +1,26 @@
+{
+    "gitignore": {
+        "branch": "master",
+        "description": "Nix function for filtering local git sources",
+        "homepage": "",
+        "owner": "hercules-ci",
+        "repo": "gitignore",
+        "rev": "7415c4feb127845553943a3856cbc5cb967ee5e0",
+        "sha256": "1zd1ylgkndbb5szji32ivfhwh04mr1sbgrnvbrqpmfb67g2g3r9i",
+        "type": "tarball",
+        "url": "https://github.com/hercules-ci/gitignore/archive/7415c4feb127845553943a3856cbc5cb967ee5e0.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
+    "naersk": {
+        "branch": "master",
+        "description": "Build rust crates in Nix. No configuration, no code generation. IFD and sandbox friendly.",
+        "homepage": "",
+        "owner": "nmattia",
+        "repo": "naersk",
+        "rev": "be6d7bfe6132d7b0bf93fa754f35fb6be516b25f",
+        "sha256": "05d0wkzaa3wp2jl4aqmrgwxq7r21vwc5s2q50ljbc42f3hl4jdmz",
+        "type": "tarball",
+        "url": "https://github.com/nmattia/naersk/archive/be6d7bfe6132d7b0bf93fa754f35fb6be516b25f.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    }
+}

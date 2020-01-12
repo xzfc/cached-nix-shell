@@ -18,9 +18,8 @@ fn main() {
 
     if var_os("CARGO_USE_OUT").is_some() {
         println!(
-            "cargo:rustc-env=CARGO_TRACE_NIX_SO={}/lib/{}.out/trace-nix.so",
+            "cargo:rustc-env=CARGO_TRACE_NIX_SO={}/lib/trace-nix.so",
             var("out").unwrap(),
-            var("CARGO_PKG_NAME").unwrap(),
         );
         println!(
             "cargo:rustc-env=CARGO_VAR_EMPTY={}/var/empty",
