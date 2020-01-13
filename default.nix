@@ -8,7 +8,8 @@ in (naersk.buildPackage {
   buildInputs = [ pkgs.pkgconfig pkgs.openssl ];
 }).overrideAttrs (_: {
   CARGO_USE_OUT = "1";
-  CARGO_GIT_COMMIT = pkgs.lib.commitIdFromGitRepo ./.git;
+  # FIXME: https://github.com/xzfc/cached-nix-shell/issues/2
+  # CARGO_GIT_COMMIT = pkgs.lib.commitIdFromGitRepo ./.git;
   postInstall = ''
     mkdir -p $out/lib $out/var/empty
     cp target/release/build/cached-nix-shell-*/out/trace-nix.so $out/lib
