@@ -2,8 +2,8 @@
 
 cd "$(dirname -- $0)"
 rm -rf tmp
-mkdir -p tmp
-rm -rf ~/.cache/cached-nix-shell
+mkdir -p tmp tmp/cache
+export XDG_CACHE_HOME=$PWD/tmp/cache
 
 run() {
 	rm -f tmp/time tmp/out
