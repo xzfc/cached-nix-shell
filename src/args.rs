@@ -58,6 +58,11 @@ impl Args {
             } else if arg == "--argstr" {
                 res.other_kw
                     .extend(vec!["--argstr".into(), next()?, next()?]);
+            } else if arg == "--option" {
+                res.other_kw
+                    .extend(vec!["--option".into(), next()?, next()?]);
+            } else if arg == "-j" || arg == "--max-jobs" {
+                res.other_kw.extend(vec!["--max-jobs".into(), next()?]);
             } else if arg == "--pure" {
                 res.pure = true;
             } else if arg == "--impure" {
