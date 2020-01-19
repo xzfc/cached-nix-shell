@@ -1,3 +1,15 @@
+//! nix-shell argument parsing
+//!
+//! While `cached-nix-shell` passes most of its arguments to `nix-shell` as-is
+//! without even looking into them, there are some arguments that should be
+//! extracted and processed by `cached-nix-shell` itself.  In order to do so, we
+//! still need to parse the whole command line.
+//!
+//! **Q:** Why not just use a library like `clap` or `docopts`?
+//! **A:** We need to emulate quirks of nix-shell argument parsing in a 100%
+//! compatible way, so it is appropriate to code this explicitly rather than use
+//! such libraries.
+
 use std::collections::VecDeque;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
