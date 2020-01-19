@@ -140,4 +140,7 @@ run cached-nix-shell -p luajit --exec lua -v
 check_contains "http://luajit.org/"
 check_fast
 
+run cached-nix-shell -pj16 luajit --exec lua -v
+check_contains "http://luajit.org/"
+
 exit $result

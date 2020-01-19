@@ -1,4 +1,5 @@
-use std::ffi::OsString;
+use std::collections::VecDeque;
+use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 use ufcs::Pipe;
 
@@ -39,10 +40,10 @@ impl Args {
             rest: Vec::new(),
             other_kw: Vec::new(),
         };
-        let mut it = args.into_iter();
-        while let Some(arg) = it.next() {
+        let mut it = VecDeque::<OsString>::from(args);
+        while let Some(arg) = get_next_arg(&mut it) {
             let mut next = || -> Result<OsString, String> {
-                it.next()
+                it.pop_front()
                     .ok_or_else(|| {
                         format!("flag {:?} requires more arguments", arg)
                     })?
@@ -74,7 +75,7 @@ impl Args {
             } else if (arg == "--run" || arg == "--command") && !in_shebang {
                 res.run = RunMode::Shell(next()?);
             } else if arg == "--exec" && !in_shebang {
-                res.run = RunMode::Exec(next()?, it.collect());
+                res.run = RunMode::Exec(next()?, it.into());
                 break;
             } else if arg.as_bytes().first() == Some(&b'-') {
                 return Err(format!("unexpected arg {:?}", arg));
@@ -83,5 +84,58 @@ impl Args {
             }
         }
         Ok(res)
+    }
+}
+
+fn get_next_arg(it: &mut VecDeque<OsString>) -> Option<OsString> {
+    let arg = it.pop_front()?;
+    let argb = arg.as_bytes();
+    if argb.len() > 2 && argb[0] == b'-' && is_alpha(argb[1]) {
+        // Expand short options and put them back to the deque.
+        // Reference: https://github.com/NixOS/nix/blob/2.3.1/src/libutil/args.cc#L29-L42
+
+        let split_idx = argb[1..]
+            .iter()
+            .position(|&b| !is_alpha(b))
+            .unwrap_or(argb.len() - 1);
+        // E.g. "-pj16" -> ("pj", "16")
+        let (letters, rest) = argb[1..].split_at(split_idx);
+
+        if rest.len() != 0 {
+            it.push_front(OsStr::from_bytes(rest).into());
+        }
+        for &c in letters.iter().rev() {
+            it.push_front(OsStr::from_bytes(&[b'-', c]).into());
+        }
+
+        it.pop_front()
+    } else {
+        Some(arg)
+    }
+}
+
+fn is_alpha(b: u8) -> bool {
+    b'a' <= b && b <= b'z' || b'A' <= b && b <= b'Z'
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    /// Expand an arg using `get_next_arg`
+    fn expand(arg: &str) -> Vec<String> {
+        let mut it: VecDeque<OsString> = VecDeque::from(vec![arg.into()]);
+        std::iter::from_fn(|| get_next_arg(&mut it))
+            .map(|s| s.to_string_lossy().into())
+            .collect()
+    }
+    #[test]
+    fn test_get_next_arg() {
+        assert_eq!(expand("--"), vec!["--"]);
+        assert_eq!(expand("default.nix"), vec!["default.nix"]);
+        assert_eq!(expand("--argstr"), vec!["--argstr"]);
+        assert_eq!(expand("-pi"), vec!["-p", "-i"]);
+        assert_eq!(expand("-j4"), vec!["-j", "4"]);
+        assert_eq!(expand("-j16"), vec!["-j", "16"]);
+        assert_eq!(expand("-pj16"), vec!["-p", "-j", "16"]);
     }
 }
