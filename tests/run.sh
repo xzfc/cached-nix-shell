@@ -6,9 +6,13 @@ mkdir -p tmp tmp/cache
 export XDG_CACHE_HOME=$PWD/tmp/cache
 
 run() {
-	rm -f tmp/time tmp/out
-	printf "\33[1mRunning %s\33[m\n" "$*"
-	time -o tmp/time -f "%e" -- "$@" > tmp/out
+	rm -f tmp/time tmp/out tmp/err
+	printf "\33[33m* Running %s\33[m\n" "$*"
+	time -o tmp/time -f "%e" -- "$@" 2>&1 > tmp/out | tee tmp/err
+}
+
+not() {
+	! "$@"
 }
 
 check() {
@@ -23,13 +27,21 @@ check() {
 	fi
 }
 
-check_contains() { check "contains $1"   grep -q "$1" tmp/out; }
-check_slow() { check "slow ($(cat tmp/time))"  grep -vq "^0.0" tmp/time; }
-check_fast() { check "fast ($(cat tmp/time))"  grep -q "^0.0" tmp/time; }
+check_contains() { check "contains $1" grep -q "$1" tmp/out; }
+check_slow() {
+	check "slow ($(cat tmp/time))" \
+		grep -q "^cached-nix-shell: updating cache$" tmp/err
+}
+check_fast() {
+	check "fast ($(cat tmp/time))" \
+		not grep -q "^cached-nix-shell: updating cache$" tmp/err
+}
 
 skip() { printf "\33[33m? skip %s\33[m\n" "$*"; }
 
-which cached-nix-shell time grep > /dev/null || exit 1
+which cached-nix-shell time grep tee > /dev/null || exit 1
+
+echo "Testing $(which cached-nix-shell)"
 
 trap 'rm -rf tmp' EXIT
 result=0
