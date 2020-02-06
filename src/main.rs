@@ -279,7 +279,10 @@ fn run_from_args(args: Vec<OsString>) {
     let env = cached_shell_env(args.pure, &inp);
 
     let (cmd, cmd_args) = match args.run {
-        args::RunMode::InteractiveShell => ("bash".into(), vec![]),
+        args::RunMode::InteractiveShell => (
+            "bash".into(),
+            vec!["--rcfile".into(), env!("CARGO_RCFILE").into()],
+        ),
         args::RunMode::Shell(cmd) => ("bash".into(), vec!["-c".into(), cmd]),
         args::RunMode::Exec(cmd, cmd_args) => (cmd, cmd_args),
     };

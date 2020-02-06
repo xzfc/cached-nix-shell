@@ -11,7 +11,8 @@ in (naersk.buildPackage {
   # FIXME: https://github.com/xzfc/cached-nix-shell/issues/2
   # CARGO_GIT_COMMIT = pkgs.lib.commitIdFromGitRepo ./.git;
   postInstall = ''
-    mkdir -p $out/lib $out/var/empty
+    mkdir -p $out/lib $out/var/empty $out/share/cached-nix-shell
     cp target/release/build/cached-nix-shell-*/out/trace-nix.so $out/lib
+    cp rcfile.sh $out/share/cached-nix-shell/rcfile.sh
   '';
 })
