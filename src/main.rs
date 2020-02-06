@@ -197,8 +197,6 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
         }
         let mut env = deserealize_env(exec.stdout);
         env.remove(OsStr::new("PWD"));
-        //env.remove(OsStr::new("SSL_CERT_FILE"));
-        //env.remove(OsStr::new("NIX_SSL_CERT_FILE"));
         env
     };
 
@@ -308,7 +306,7 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
         hasher.result_str()
     };
 
-    let env = if let Some(env) = check_cache(&inputs_hash) {
+    let mut env = if let Some(env) = check_cache(&inputs_hash) {
         env
     } else {
         eprintln!("cached-nix-shell: updating cache");
@@ -322,6 +320,8 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
 
         outp.env
     };
+
+    env.insert(OsString::from("IN_CACHED_NIX_SHELL"), OsString::from("1"));
 
     if pure {
         env
@@ -340,6 +340,8 @@ fn merge_env(mut env: EnvMap) -> EnvMap {
     env.remove(OsStr::new("SSL_CERT_FILE"));
     env.remove(OsStr::new("NIX_SSL_CERT_FILE"));
 
+    env.insert(OsString::from("IN_NIX_SHELL"), OsString::from("impure"));
+
     for (var, val) in std::env::vars_os() {
         env.entry(var.clone())
             .and_modify(|old_val| {
@@ -356,6 +358,7 @@ fn merge_env(mut env: EnvMap) -> EnvMap {
             })
             .or_insert_with(|| val);
     }
+
     env
 }
 
