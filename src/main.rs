@@ -148,8 +148,17 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
 
     let env = {
         let mut clean_env = BTreeMap::new();
-        let whitelist =
-            &["NIX_PATH", "NIX_SSL_CERT_FILE", "XDG_RUNTIME_DIR", "TMPDIR"];
+        let whitelist = &[
+            "NIX_PATH",
+            // tmp dir
+            "TMPDIR",
+            "XDG_RUNTIME_DIR",
+            // ssl-related
+            "CURL_CA_BUNDLE",
+            "GIT_SSL_CAINFO",
+            "NIX_SSL_CERT_FILE",
+            "SSL_CERT_FILE",
+        ];
         for var in whitelist {
             if let Some(val) = std::env::var_os(var) {
                 clean_env.insert(OsString::from(var), val);
