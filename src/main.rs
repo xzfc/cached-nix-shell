@@ -90,7 +90,7 @@ struct NixShellOutput {
 }
 
 fn minimal_essential_path() -> OsString {
-    let required_binaries = ["nix-shell", "tar", "gzip"];
+    let required_binaries = ["nix-shell", "tar", "gzip", "git"];
 
     let which_dir = |binary: &&str| -> Option<PathBuf> {
         std::env::var_os("PATH")
