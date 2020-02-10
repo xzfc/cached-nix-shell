@@ -37,7 +37,49 @@ pub struct Args {
     pub rest: Vec<OsString>,
     /// other keyword arguments
     pub other_kw: Vec<OsString>,
+    /// weak keyword arguments
+    pub weak_kw: Vec<OsString>,
 }
+
+struct NixShellOption {
+    /// true if adding or removing this option should not invalidate the cache
+    is_weak: bool,
+    arg_count: u8,
+    names: &'static [&'static str],
+}
+
+const fn opt(
+    is_weak: bool,
+    arg_count: u8,
+    names: &'static [&'static str],
+) -> NixShellOption {
+    NixShellOption {
+        is_weak,
+        arg_count,
+        names,
+    }
+}
+
+const OPTIONS_DB: &[NixShellOption] = &[
+    opt(false, 1, &["--attr", "-A"]),
+    opt(false, 1, &["-I"]),
+    opt(false, 2, &["--arg"]),
+    opt(false, 2, &["--argstr"]),
+    opt(true, 0, &["--fallback"]),
+    opt(true, 0, &["--keep-failed", "-K"]),
+    opt(true, 0, &["--keep-going", "-k"]),
+    opt(true, 0, &["--no-build-hook"]),
+    opt(true, 0, &["--no-build-output", "-Q"]),
+    opt(true, 0, &["--quiet"]),
+    opt(true, 0, &["--repair"]),
+    opt(true, 0, &["--show-trace"]),
+    opt(true, 0, &["--verbose", "-v"]),
+    opt(true, 1, &["--cores"]),
+    opt(true, 1, &["--max-jobs", "-j"]),
+    opt(true, 1, &["--max-silent-time"]),
+    opt(true, 1, &["--timeout"]),
+    opt(true, 2, &["--option"]),
+];
 
 impl Args {
     pub fn parse(
@@ -51,6 +93,7 @@ impl Args {
             run: RunMode::InteractiveShell,
             rest: Vec::new(),
             other_kw: Vec::new(),
+            weak_kw: Vec::new(),
         };
         let mut it = VecDeque::<OsString>::from(args);
         while let Some(arg) = get_next_arg(&mut it) {
@@ -61,20 +104,19 @@ impl Args {
                     })?
                     .pipe(Ok)
             };
-            if arg == "--attr" || arg == "-A" {
-                res.other_kw.extend(vec!["-A".into(), next()?]);
-            } else if arg == "-I" {
-                res.other_kw.extend(vec!["-I".into(), next()?]);
-            } else if arg == "--arg" {
-                res.other_kw.extend(vec!["--arg".into(), next()?, next()?]);
-            } else if arg == "--argstr" {
-                res.other_kw
-                    .extend(vec!["--argstr".into(), next()?, next()?]);
-            } else if arg == "--option" {
-                res.other_kw
-                    .extend(vec!["--option".into(), next()?, next()?]);
-            } else if arg == "-j" || arg == "--max-jobs" {
-                res.other_kw.extend(vec!["--max-jobs".into(), next()?]);
+            if let Some(db_item) = OPTIONS_DB
+                .iter()
+                .find(|it| it.names.iter().any(|&x| arg == x))
+            {
+                let vec = if db_item.is_weak {
+                    &mut res.weak_kw
+                } else {
+                    &mut res.other_kw
+                };
+                vec.push(db_item.names[0].into());
+                for _ in 0..db_item.arg_count {
+                    vec.push(next()?);
+                }
             } else if arg == "--pure" {
                 res.pure = true;
             } else if arg == "--impure" {

@@ -28,6 +28,7 @@ check() {
 }
 
 check_contains() { check "contains $1" grep -q "$1" tmp/out; }
+check_stderr_contains() { check "contains $1" grep -q "$1" tmp/err; }
 check_slow() {
 	check "slow ($(cat tmp/time))" \
 		grep -q "^cached-nix-shell: updating cache$" tmp/err
@@ -154,5 +155,13 @@ check_fast
 
 run cached-nix-shell -pj16 luajit --exec lua -v
 check_contains "http://luajit.org/"
+check_fast
+
+run cached-nix-shell -vp --run :
+check_slow
+check_stderr_contains "^evaluating file '/"
+
+run cached-nix-shell -vp --run :
+check_fast
 
 exit $result

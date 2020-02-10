@@ -81,6 +81,7 @@ struct NixShellInput {
     pwd: OsString,
     env: EnvMap,
     args: Vec<OsString>,
+    weak_args: Vec<OsString>,
 }
 
 struct NixShellOutput {
@@ -177,7 +178,12 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
     args.push(OsString::from("--"));
     args.extend(x.rest.clone());
 
-    NixShellInput { pwd, env, args }
+    NixShellInput {
+        pwd,
+        env,
+        args,
+        weak_args: x.weak_kw.clone(),
+    }
 }
 
 fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
@@ -185,6 +191,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
 
     let env = {
         let exec = Command::new("nix-shell")
+            .args(&inp.weak_args)
             .args(&inp.args)
             .stderr(std::process::Stdio::inherit())
             .current_dir(&inp.pwd)
