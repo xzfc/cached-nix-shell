@@ -59,7 +59,6 @@ impl Args {
                     .ok_or_else(|| {
                         format!("flag {:?} requires more arguments", arg)
                     })?
-                    .clone()
                     .pipe(Ok)
             };
             if arg == "--attr" || arg == "-A" {
@@ -113,7 +112,7 @@ fn get_next_arg(it: &mut VecDeque<OsString>) -> Option<OsString> {
         // E.g. "-pj16" -> ("pj", "16")
         let (letters, rest) = argb[1..].split_at(split_idx);
 
-        if rest.len() != 0 {
+        if !rest.is_empty() {
             it.push_front(OsStr::from_bytes(rest).into());
         }
         for &c in letters.iter().rev() {

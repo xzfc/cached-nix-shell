@@ -97,14 +97,13 @@ fn minimal_essential_path() -> OsString {
             .as_ref()
             .unwrap()
             .pipe(std::env::split_paths)
-            .filter(|dir| {
+            .find(|dir| {
                 nix::unistd::access(
                     &dir.join(binary),
                     nix::unistd::AccessFlags::X_OK,
                 )
                 .is_ok()
             })
-            .next()
     };
 
     let required_paths = required_binaries
@@ -454,7 +453,7 @@ fn main() {
 
     if argv.len() >= 2 {
         let fname = &argv[1];
-        if let Some(nix_shell_args) = shebang::parse_script(&fname) {
+        if let Some(nix_shell_args) = shebang::parse_script(fname) {
             run_script(
                 fname.clone(),
                 nix_shell_args,

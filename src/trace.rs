@@ -25,7 +25,7 @@ impl Trace {
 
     pub fn serialize(&self) -> Vec<u8> {
         let mut result = Vec::<u8>::new();
-        for (a, b) in self.items.iter() {
+        for (a, b) in &self.items {
             result.push(0);
             result.extend(a);
             result.push(0);
@@ -36,7 +36,7 @@ impl Trace {
 
     /// Return true if trace doesn't match (i.e. some file is changed)
     pub fn check_for_changes(&self) -> bool {
-        for (k, v) in self.items.iter() {
+        for (k, v) in &self.items {
             if check_item_updated(k, v) {
                 return true;
             }
