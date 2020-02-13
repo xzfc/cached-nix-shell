@@ -16,27 +16,19 @@ fn main() {
         .unwrap();
     assert!(cmd.success());
 
-    if var_os("CARGO_USE_OUT").is_some() {
+    if var_os("CNS_IN_NIX_BUILD").is_some() {
+        let out = var("out").unwrap();
+        println!("cargo:rustc-env=CNS_TRACE_NIX_SO={}/lib/trace-nix.so", out);
+        println!("cargo:rustc-env=CNS_VAR_EMPTY={}/var/empty", out);
         println!(
-            "cargo:rustc-env=CARGO_TRACE_NIX_SO={}/lib/trace-nix.so",
-            var("out").unwrap(),
-        );
-        println!(
-            "cargo:rustc-env=CARGO_VAR_EMPTY={}/var/empty",
-            var("out").unwrap(),
-        );
-        println!(
-            "cargo:rustc-env=CARGO_RCFILE={}/share/cached-nix-shell/rcfile.sh",
-            var("out").unwrap()
+            "cargo:rustc-env=CNS_RCFILE={}/share/cached-nix-shell/rcfile.sh",
+            out
         );
     } else {
+        println!("cargo:rustc-env=CNS_TRACE_NIX_SO={}/trace-nix.so", out_dir);
+        println!("cargo:rustc-env=CNS_VAR_EMPTY=/var/empty");
         println!(
-            "cargo:rustc-env=CARGO_TRACE_NIX_SO={}/trace-nix.so",
-            out_dir
-        );
-        println!("cargo:rustc-env=CARGO_VAR_EMPTY=/var/empty");
-        println!(
-            "cargo:rustc-env=CARGO_RCFILE={}/rcfile.sh",
+            "cargo:rustc-env=CNS_RCFILE={}/rcfile.sh",
             var("CARGO_MANIFEST_DIR").unwrap()
         );
     }

@@ -200,7 +200,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             .current_dir(&inp.pwd)
             .env_clear()
             .envs(&inp.env)
-            .env("LD_PRELOAD", env!("CARGO_TRACE_NIX_SO"))
+            .env("LD_PRELOAD", env!("CNS_TRACE_NIX_SO"))
             .env("TRACE_NIX", trace_file.path())
             .output()
             .expect("failed to execute nix-shell");
@@ -279,7 +279,7 @@ fn run_from_args(args: Vec<OsString>) {
     let mut args = Args::parse(args, false).pipe(unwrap_or_errx);
 
     let nix_shell_pwd = if args.packages {
-        OsString::from(env!("CARGO_VAR_EMPTY"))
+        OsString::from(env!("CNS_VAR_EMPTY"))
     } else if let Some(arg) = args.rest.first_mut() {
         let pwd = absolute_dirname(arg);
         *arg = PathBuf::from(&arg)
@@ -299,7 +299,7 @@ fn run_from_args(args: Vec<OsString>) {
     let (cmd, cmd_args) = match args.run {
         args::RunMode::InteractiveShell => (
             "bash".into(),
-            vec!["--rcfile".into(), env!("CARGO_RCFILE").into()],
+            vec!["--rcfile".into(), env!("CNS_RCFILE").into()],
         ),
         args::RunMode::Shell(cmd) => ("bash".into(), vec!["-c".into(), cmd]),
         args::RunMode::Exec(cmd, cmd_args) => (cmd, cmd_args),
@@ -444,7 +444,7 @@ fn main() {
     let argv: Vec<OsString> = std::env::args_os().collect();
 
     if argv.len() == 2 && argv[1] == "--version" {
-        let git_commit = match option_env!("CARGO_GIT_COMMIT") {
+        let git_commit = match option_env!("CNS_GIT_COMMIT") {
             Some(x) => format!("-{}", x),
             None => format!(""),
         };
