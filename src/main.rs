@@ -158,6 +158,9 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
             "GIT_SSL_CAINFO",
             "NIX_SSL_CERT_FILE",
             "SSL_CERT_FILE",
+            // Necessary if nix build caches are accessed via a proxy
+            "http_proxy",
+            "https_proxy",
         ];
         for var in whitelist {
             if let Some(val) = std::env::var_os(var) {
