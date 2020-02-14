@@ -76,18 +76,21 @@ int __lxstat(int ver, const char *path, struct stat *sb) {
 			print_log('s', path, "-");
 		} else if (S_ISLNK(sb->st_mode)) {
 			pthread_mutex_lock(&mutex);
-			if (buf_len < sb->st_size + 1) {
-				buf_len = sb->st_size + 1;
+			if (buf_len < sb->st_size + 2) {
+				buf_len = sb->st_size + 2;
 				buf = realloc(buf, buf_len);
 				if (buf == NULL)
 					FATAL();
 			}
-			ssize_t link_len = readlink(path, buf, sb->st_size);
+			ssize_t link_len = readlink(path, buf+1, sb->st_size);
 			if (link_len < 0 || link_len != sb->st_size)
 				FATAL();
-			buf[sb->st_size] = 0;
+			buf[0] = 'l';
+			buf[sb->st_size+1] = 0;
 			print_log('s', path, buf);
 			pthread_mutex_unlock(&mutex);
+		} else if (S_ISDIR(sb->st_mode)) {
+			print_log('s', path, "d");
 		} else {
 			print_log('s', path, "+");
 		}
@@ -181,8 +184,10 @@ static void file_md5sum(char digest_s[static 33], int fd) {
 	char *mmaped = NULL;
 	if (stat_.st_size != 0) {
 		mmaped = mmap(NULL, stat_.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-		if (mmaped == MAP_FAILED)
-			FATAL();
+		if (mmaped == MAP_FAILED) {
+			strcpy(digest_s, "e");
+			return;
+		}
 	}
 
 	unsigned char digest_b[16];

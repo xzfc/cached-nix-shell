@@ -46,6 +46,7 @@ rm -rf test-tmp
 mkdir test-tmp
 echo '"foo"' > test-tmp/test.nix
 : > test-tmp/empty
+ln -s empty test-tmp/link
 
 x=""
 for i in {1..64};do
@@ -56,7 +57,7 @@ done
 run 'with import <unstable> {}; bash'
 check import-channel \
 	"s/nix/var/nix/profiles/per-user/root/channels/unstable" \
-	"$(readlink /nix/var/nix/profiles/per-user/root/channels/unstable)"
+	"l$(readlink /nix/var/nix/profiles/per-user/root/channels/unstable)"
 
 run 'with import <nonexistentChannel> {}; bash'
 check import-channel-ne \
@@ -66,6 +67,10 @@ check import-channel-ne \
 run 'import ./test-tmp/test.nix'
 check import-relative-nix \
 	"s$PWD/test-tmp/test.nix" "+"
+
+run 'import ./test-tmp'
+check import-relative-nix-dir \
+	"s$PWD/test-tmp" "d"
 
 run 'import ./nonexistent.nix'
 check import-relative-nix-ne \
@@ -80,6 +85,10 @@ check builtins.readFile \
 run 'builtins.readFile "/nonexistent/readFile"'
 check builtins.readFile-ne \
 	"f/nonexistent/readFile" "-"
+
+run 'builtins.readFile ./test-tmp'
+check builtins.readFile-dir \
+	"f$PWD/test-tmp" "e"
 
 run 'builtins.readFile ./test-tmp/empty'
 check builtins.readFile-empty \

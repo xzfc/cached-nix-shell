@@ -19,11 +19,13 @@ Since the file names could contain arbitrary byte sequences (broken utf8, `\n`, 
 
 ```
 lstat() == -1:               `s` FILENAME `\0` `-` `\0`
-lstat() ==  0 && !S_ISLNK(): `s` FILENAME `\0` `+` `\0`
-lstat() ==  0 && S_ISLNK():  `s` FILENAME `\0` readlink(FILENAME) `\0`
+lstat() ==  0 && S_ISLNK():  `s` FILENAME `\0` `l` readlink(FILENAME) `\0`
+lstat() ==  0 && S_ISDIR():  `s` FILENAME `\0` `d` `\0`
+lstat() ==  0 && !S_ISDIR() && !S_ISLNK(): `s` FILENAME `\0` `+` `\0`
 
 open() == -1:                `f` FILENAME `\0` `-` `\0`
 open() != -1:                `f` FILENAME `\0` md5sum(file contents) `\0`
+open() != -1 && read error:  `f` FILENAME `\0` `e` `\0`
 
 opendir() == NULL:           `d` FILENAME `\0` `-` `\0`
 opendir() != NULL:           `d` FILENAME `\0` md5sum(directory listing) `\0`

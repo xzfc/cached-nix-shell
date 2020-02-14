@@ -3,7 +3,7 @@ use crypto::md5::Md5;
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::{read_dir, File};
+use std::fs::{read_dir, read_link, symlink_metadata, File};
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 
@@ -49,26 +49,34 @@ fn check_item_updated(k: &[u8], v: &[u8]) -> bool {
     let tmp: OsString;
     let fname = OsStr::from_bytes(&k[1..]);
     let res = match k.iter().next() {
-        Some(b's') => match nix::sys::stat::lstat(fname) {
-            Ok(_) => match nix::fcntl::readlink(fname) {
-                Ok(x) => {
-                    tmp = x;
-                    tmp.as_os_str()
-                }
-                Err(_) => OsStr::new("+"),
-            },
+        Some(b's') => match symlink_metadata(fname) {
             Err(_) => OsStr::new("-"),
+            Ok(md) => {
+                if md.file_type().is_symlink() {
+                    let mut l = OsString::from("l");
+                    l.push(read_link(fname).expect("Can't read link"));
+                    tmp = l;
+                    tmp.as_os_str()
+                } else if md.file_type().is_dir() {
+                    OsStr::new("d")
+                } else {
+                    OsStr::new("+")
+                }
+            }
         },
         Some(b'f') => match File::open(fname) {
             Ok(mut file) => {
                 let mut data = Vec::new();
-                file.read_to_end(&mut data).expect("Can't read file");
+                match file.read_to_end(&mut data) {
+                    Ok(_) => {
+                        let mut digest = Md5::new();
+                        digest.input(&data);
 
-                let mut digest = Md5::new();
-                digest.input(&data);
-
-                tmp = OsString::from(digest.result_str());
-                tmp.as_os_str()
+                        tmp = OsString::from(digest.result_str());
+                        tmp.as_os_str()
+                    }
+                    Err(_) => OsStr::new("e"),
+                }
             }
             Err(_) => OsStr::new("-"),
         },
