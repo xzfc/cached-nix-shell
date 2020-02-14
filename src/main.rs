@@ -283,7 +283,8 @@ fn run_from_args(args: Vec<OsString>) {
     } else if let Some(arg) = args.rest.first_mut() {
         let pwd = absolute_dirname(arg);
         *arg = PathBuf::from(&arg)
-            .file_name()
+            .components()
+            .next_back()
             .unwrap()
             .pipe(|x| PathBuf::from(".").join(x))
             .into_os_string();

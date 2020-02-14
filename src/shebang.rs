@@ -13,7 +13,7 @@ pub fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
     let reader = std::io::BufReader::new(&f);
     let mut lines = reader.byte_lines();
 
-    if &lines.next()?.unwrap()[0..2] != b"#!" {
+    if &lines.next()?.ok()?[0..2] != b"#!" {
         return None; // First line isn't shebang
     }
 

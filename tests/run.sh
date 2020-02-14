@@ -137,6 +137,9 @@ run cached-nix-shell ./11-readDir.nix --run 'echo $x'
 check_contains '{"a":"directory","b":"regular","c":"regular"}'
 check_slow
 
+run cached-nix-shell ./12-implicit-default-nix --run 'lua -v'
+check_contains "Lua.org"
+
 run cached-nix-shell -p lua --run 'lua -v'
 check_contains "Lua.org"
 check_slow
