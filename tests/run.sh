@@ -140,6 +140,27 @@ check_slow
 run cached-nix-shell ./12-implicit-default-nix --run 'lua -v'
 check_contains "Lua.org"
 
+# dir <-> file cache invalidation {{{
+mkdir -p ./tmp/implicit/f
+cp ./12-implicit-default-nix/default.nix ./tmp/implicit/f/default.nix
+run cached-nix-shell ./tmp/implicit/f --run 'lua -v'
+check_contains "Lua.org"
+check_slow
+
+rm -rf ./tmp/implicit/f
+cp ./12-implicit-default-nix/default.nix ./tmp/implicit/f
+run cached-nix-shell ./tmp/implicit/f --run 'lua -v'
+check_contains "Lua.org"
+check_slow
+
+rm -f ./tmp/implicit/f
+mkdir -p ./tmp/implicit/f
+cp ./12-implicit-default-nix/default.nix ./tmp/implicit/f/default.nix
+run cached-nix-shell ./tmp/implicit/f --run 'lua -v'
+check_contains "Lua.org"
+check_slow
+# }}}
+
 run cached-nix-shell -p lua --run 'lua -v'
 check_contains "Lua.org"
 check_slow
