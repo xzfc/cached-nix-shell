@@ -7,6 +7,10 @@ install)
 build-nix)
 	nix-build default.nix
 	;;
+format)
+	nixfmt default.nix shell.nix
+	cargo fmt
+	;;
 test)
 	cargo test &&
 	./tests/run.sh &&
