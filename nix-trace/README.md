@@ -15,7 +15,7 @@ LD_PRELOAD=/path/to/intercept.so TRACE_NIX=./log nix-shell -p stdenv --run :
 
 ## Log format
 
-Since the file names could contain arbitrary byte sequences (broken utf8, `\n`, etc), the NUL-separated format is choosen.
+Since the file names could contain arbitrary byte sequences (broken utf8, `\n`, etc), the NUL-separated format is chosen.
 
 ```
 lstat() == -1:               `s` FILENAME `\0` `-` `\0`
