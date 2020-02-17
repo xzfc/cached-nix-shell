@@ -149,6 +149,7 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
     let env = {
         let mut clean_env = BTreeMap::new();
         let whitelist = &[
+            "HOME",
             "NIX_PATH",
             // tmp dir
             "TMPDIR",
