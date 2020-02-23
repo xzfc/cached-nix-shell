@@ -161,6 +161,9 @@ check_contains "Lua.org"
 check_slow
 # }}}
 
+run ./13-args.sh a b c
+check_contains "^count=3 'a' 'b' 'c'$"
+
 run cached-nix-shell -p lua --run 'lua -v'
 check_contains "Lua.org"
 check_slow
