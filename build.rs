@@ -3,8 +3,9 @@ use std::process::Command;
 
 fn main() {
     let out_dir = var("OUT_DIR").unwrap();
+    let cc = var("CC").unwrap();
 
-    let cmd = Command::new("gcc")
+    let cmd = Command::new(cc)
         .args(&[
             "-fPIC",
             "-shared",
