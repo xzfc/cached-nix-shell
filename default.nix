@@ -5,7 +5,7 @@ let
   gitignoreSource = (pkgs.callPackage sources.gitignore { }).gitignoreSource;
 in (naersk.buildPackage {
   root = gitignoreSource ./.;
-  buildInputs = [ pkgs.pkgconfig pkgs.openssl ];
+  buildInputs = [ pkgs.openssl ];
 }).overrideAttrs (_: {
   CNS_IN_NIX_BUILD = "1";
   # FIXME: https://github.com/xzfc/cached-nix-shell/issues/2
