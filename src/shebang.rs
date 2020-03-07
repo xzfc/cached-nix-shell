@@ -1,5 +1,4 @@
 use bytelines::ByteLinesReader;
-use regex::bytes::Regex;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
@@ -7,13 +6,11 @@ use std::os::unix::ffi::OsStrExt;
 /// Parse script in the same way as nix-shell does.
 /// Reference: https://github.com/NixOS/nix/blob/2.3.1/src/nix-build/nix-build.cc#L113-L126
 pub fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
-    let re = Regex::new(r#"^#!\s*nix-shell (.*)$"#).unwrap();
-
     let f = File::open(fname).ok()?;
     let reader = std::io::BufReader::new(&f);
     let mut lines = reader.byte_lines();
 
-    if &lines.next()?.ok()?[0..2] != b"#!" {
+    if !lines.next()?.ok()?.starts_with(b"#!") {
         return None; // First line isn't shebang
     }
 
@@ -21,8 +18,8 @@ pub fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
 
     while let Some(line) = lines.next() {
         let line = line.unwrap();
-        if let Some(m) = re.captures(line) {
-            let mut items = shellwords(m.get(1).unwrap().as_bytes())
+        if let Some(m) = re_nix_shell(line) {
+            let mut items = shellwords(m)
                 .into_iter()
                 .map(|x| OsStr::from_bytes(&x).to_os_string())
                 .collect::<Vec<OsString>>();
@@ -35,7 +32,6 @@ pub fn parse_script(fname: &OsStr) -> Option<Vec<OsString>> {
 
 /// Reference: https://github.com/NixOS/nix/blob/2.3.1/src/nix-build/nix-build.cc#L26-L68
 fn shellwords(s: &[u8]) -> Vec<Vec<u8>> {
-    let whitespace = Regex::new(r#"^(\s+).*"#).unwrap();
     let mut res = Vec::new();
     let mut it = 0;
     let mut begin = 0;
@@ -43,11 +39,11 @@ fn shellwords(s: &[u8]) -> Vec<Vec<u8>> {
     let mut state = true;
     while it < s.len() {
         if state {
-            if let Some(match_) = whitespace.captures(&s[it..]) {
+            if let Some(match_len) = re_whitespaces_len(&s[it..]) {
                 cur.extend_from_slice(&s[begin..it]);
                 res.push(cur);
                 cur = Vec::new();
-                it += match_.get(1).unwrap().end();
+                it += match_len;
                 begin = it;
             }
         }
@@ -71,6 +67,37 @@ fn shellwords(s: &[u8]) -> Vec<Vec<u8>> {
         res.push(cur);
     }
     res
+}
+
+/// Characters that are matched by `\s` or isspace(3).
+const SPACES: &[u8; 6] = &[9, 10, 11, 12, 13, 32];
+
+/// Match C++'s `std::regex("^#!\\s*nix-shell (.*)$")` and return `\1`
+fn re_nix_shell(mut line: &[u8]) -> Option<&[u8]> {
+    if !line.starts_with(b"#!") {
+        return None;
+    }
+    line = &line[b"#!".len()..];
+
+    while line.first().map(|c| SPACES.contains(c)) == Some(true) {
+        line = &line[1..];
+    }
+
+    if !line.starts_with(b"nix-shell ") {
+        return None;
+    }
+    line = &line[b"nix-shell ".len()..];
+
+    Some(line)
+}
+
+/// Match C++'s `std::regex("^(\\s+).*")` and return length of `\1`
+fn re_whitespaces_len(line: &[u8]) -> Option<usize> {
+    let mut result = 0;
+    while line.get(result).map(|c| SPACES.contains(c)) == Some(true) {
+        result += 1
+    }
+    Some(result).filter(|&x| x != 0)
 }
 
 #[cfg(test)]
