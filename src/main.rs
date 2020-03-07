@@ -1,8 +1,6 @@
 use crate::args::Args;
 use crate::path_clean::PathClean;
 use crate::trace::Trace;
-use crypto::digest::Digest;
-use crypto::sha1::Sha1;
 use std::collections::{BTreeMap, HashSet};
 use std::env::current_dir;
 use std::ffi::{OsStr, OsString};
@@ -323,11 +321,7 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
         inp.pwd.as_bytes(),
     ]);
 
-    let inputs_hash = {
-        let mut hasher = Sha1::new();
-        hasher.input(&inputs);
-        hasher.result_str()
-    };
+    let inputs_hash = blake3::hash(&inputs).to_hex().as_str().to_string();
 
     let mut env = if let Some(env) = check_cache(&inputs_hash) {
         env

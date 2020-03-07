@@ -1,5 +1,3 @@
-use crypto::digest::Digest;
-use crypto::md5::Md5;
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
@@ -69,10 +67,9 @@ fn check_item_updated(k: &[u8], v: &[u8]) -> bool {
                 let mut data = Vec::new();
                 match file.read_to_end(&mut data) {
                     Ok(_) => {
-                        let mut digest = Md5::new();
-                        digest.input(&data);
-
-                        tmp = OsString::from(digest.result_str());
+                        tmp = OsString::from(
+                            &blake3::hash(&data).to_hex().as_str()[..32],
+                        );
                         tmp.as_os_str()
                     }
                     Err(_) => OsStr::new("e"),
@@ -105,7 +102,7 @@ fn hash_dir(fname: &OsStr) -> OsString {
         Err(_) => return OsString::from("-"),
     };
 
-    let mut digest = Md5::new();
+    let mut hasher = blake3::Hasher::new();
     entries
         .filter_map(|entry| {
             let entry = entry.ok()?;
@@ -126,6 +123,8 @@ fn hash_dir(fname: &OsStr) -> OsString {
             Some([entry.file_name().as_bytes(), &[b'=', typ, 0]].concat())
         })
         .sorted()
-        .for_each(|entry| digest.input(&entry));
-    OsString::from(digest.result_str())
+        .for_each(|entry| {
+            hasher.update(&entry);
+        });
+    OsString::from(&hasher.finalize().to_hex().as_str()[..32])
 }

@@ -14,11 +14,11 @@ run_without_p() {
 
 result=0
 
-dir_md5sum() {
+dir_b3sum() {
 	find "$1" -mindepth 1 -maxdepth 1 -printf '%P=%y\0' |
 		sed -z 's/[^dlf]$/u/' |
 		LC_ALL=C sort -z |
-		md5sum |
+		b3sum |
 		head -c 32
 }
 
@@ -80,7 +80,7 @@ check import-relative-nix-ne \
 run 'builtins.readFile ./test-tmp/test.nix'
 check builtins.readFile \
 	"f$PWD/test-tmp/test.nix" \
-	"$(md5sum ./test-tmp/test.nix | head -c 32)"
+	"$(b3sum ./test-tmp/test.nix | head -c 32)"
 
 run 'builtins.readFile "/nonexistent/readFile"'
 check builtins.readFile-ne \
@@ -93,12 +93,12 @@ check builtins.readFile-dir \
 run 'builtins.readFile ./test-tmp/empty'
 check builtins.readFile-empty \
 	"f$PWD/test-tmp/empty" \
-	"$(md5sum ./test-tmp/empty | head -c 32)"
+	"$(b3sum ./test-tmp/empty | head -c 32)"
 
 
 run 'builtins.readDir ./test-tmp'
 check builtins.readDir \
-	"d$PWD/test-tmp" "$(dir_md5sum ./test-tmp)"
+	"d$PWD/test-tmp" "$(dir_b3sum ./test-tmp)"
 
 run 'builtins.readDir "/nonexistent/readDir"'
 check builtins.readDir-ne \
@@ -107,7 +107,7 @@ check builtins.readDir-ne \
 
 run 'builtins.readDir ./test-tmp/many-dirs'
 check builtins.readDir-many-dirs \
-	"d$PWD/test-tmp/many-dirs" "$(dir_md5sum ./test-tmp/many-dirs)"
+	"d$PWD/test-tmp/many-dirs" "$(dir_b3sum ./test-tmp/many-dirs)"
 
 run_without_p
 check implicit:shell.nix \

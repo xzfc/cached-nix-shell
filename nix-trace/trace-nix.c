@@ -1,11 +1,11 @@
 #define _GNU_SOURCE
 
+#include "blake3.h"
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <openssl/md5.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -34,12 +34,14 @@ static DIR *(*real_opendir)(const char *name) = NULL;
 		exit(2); \
 	} while(0)
 
+#define LEN 16
+
 // Predeclarations
 
-static void dir_md5sum(char [static 33], DIR *);
+static void convert_digest(char [static LEN*2+1], const uint8_t [static LEN]);
 static int enable(const char *);
-static void file_md5sum(char [static 33], int);
-static void md5_convert_digest(char [static 33], const unsigned char [static 16]);
+static void hash_dir(char [static LEN*2+1], DIR *);
+static void hash_file(char [static LEN*2+1], int);
 static void print_log(char, const char *, const char *);
 static int strcmp_qsort(const void *, const void *);
 
@@ -110,8 +112,8 @@ int open(const char *path, int flags, ...) {
 		if (fd == -1) {
 			print_log('f', path, "-");
 		} else {
-			char digest[33];
-			file_md5sum(digest, fd);
+			char digest[LEN*2+1];
+			hash_file(digest, fd);
 			print_log('f', path, digest);
 		}
 	}
@@ -125,8 +127,8 @@ DIR *opendir(const char *path) {
 		if (dirp == NULL) {
 			print_log('d', path, "-");
 		} else {
-			char digest[33];
-			dir_md5sum(digest, dirp);
+			char digest[LEN*2+1];
+			hash_dir(digest, dirp);
 			print_log('d', path, digest);
 		}
 	}
@@ -176,7 +178,7 @@ static void print_log(char op, const char *path, const char *result) {
 	pthread_mutex_unlock(&mutex);
 }
 
-static void file_md5sum(char digest_s[static 33], int fd) {
+static void hash_file(char digest_s[static LEN*2+1], int fd) {
 	struct stat stat_;
 	int rc = fstat(fd, &stat_);
 	if (rc != 0)
@@ -190,9 +192,12 @@ static void file_md5sum(char digest_s[static 33], int fd) {
 		}
 	}
 
-	unsigned char digest_b[16];
-	MD5(mmaped, stat_.st_size, digest_b);
-	md5_convert_digest(digest_s, digest_b);
+	blake3_hasher hasher;
+	blake3_hasher_init(&hasher);
+	blake3_hasher_update(&hasher, mmaped, stat_.st_size);
+	uint8_t digest_b[LEN];
+	blake3_hasher_finalize(&hasher, digest_b, LEN);
+	convert_digest(digest_s, digest_b);
 
 	if (stat_.st_size != 0) {
 		rc = munmap(mmaped, stat_.st_size);
@@ -205,7 +210,7 @@ static int strcmp_qsort(const void *a, const void *b) {
 	return strcmp(*(const char**)a, *(const char **)b);
 }
 
-static void dir_md5sum(char digest_s[static 33], DIR *dirp) {
+static void hash_dir(char digest_s[static LEN*2+1], DIR *dirp) {
 	// A dynamically growing array of strings
 	size_t entries_total = 32, n = 0;
 	char **entries = calloc(entries_total, sizeof(char*));
@@ -236,13 +241,13 @@ static void dir_md5sum(char digest_s[static 33], DIR *dirp) {
 	qsort(entries, n, sizeof(char*), strcmp_qsort);
 
 	// Calculate hash
-	unsigned char digest_b[16];
-	MD5_CTX ctx;
-	MD5_Init(&ctx);
+	uint8_t digest_b[LEN];
+	blake3_hasher hasher;
+	blake3_hasher_init(&hasher);
 	for (int i = 0; i < n; i++)
-		MD5_Update(&ctx, entries[i], strlen(entries[i])+1);
-	MD5_Final(digest_b, &ctx);
-	md5_convert_digest(digest_s, digest_b);
+		blake3_hasher_update(&hasher, entries[i], strlen(entries[i])+1);
+	blake3_hasher_finalize(&hasher, digest_b, LEN);
+	convert_digest(digest_s, digest_b);
 
 	// Memory cleanup
 	for (int i = 0; i < n; i++)
@@ -253,7 +258,7 @@ static void dir_md5sum(char digest_s[static 33], DIR *dirp) {
 	rewinddir(dirp);
 }
 
-static void md5_convert_digest(char digest_s[static 33], const unsigned char digest_b[static 16]) {
-	for (int i = 0; i < 16; i++)
+static void convert_digest(char digest_s[static LEN*2+1], const uint8_t digest_b[static LEN]) {
+	for (int i = 0; i < LEN; i++)
 		sprintf(digest_s + i*2, "%02x", (unsigned)digest_b[i]);
 }

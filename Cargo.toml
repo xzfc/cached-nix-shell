@@ -6,10 +6,10 @@ license = "Unlicense OR MIT"
 edition = "2018"
 
 [dependencies]
+blake3 = "0.2.2"
 bytelines = "2.2.2"
 itertools = "0.8.2"
 nix = "0.17.0"
-rust-crypto = "0.2.36"
 serde_json = "1.0.48"
 tempfile = "3.1.0"
 ufcs = "0.1.0"
