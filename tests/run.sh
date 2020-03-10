@@ -164,6 +164,9 @@ check_slow
 run ./13-args.sh a b c
 check_contains "^count=3 'a' 'b' 'c'$"
 
+run ./14-nontrivial-interpreter.sh a 'b c'
+check_contains "^, 1, 2, 3, \./14-nontrivial-interpreter\.sh, a, 'b c'$"
+
 run cached-nix-shell -p lua --run 'lua -v'
 check_contains "Lua.org"
 check_slow

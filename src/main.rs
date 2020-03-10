@@ -1,4 +1,5 @@
 use crate::args::Args;
+use crate::bash::is_literal_bash_string;
 use crate::path_clean::PathClean;
 use crate::trace::Trace;
 use std::collections::{BTreeMap, HashSet};
@@ -15,6 +16,7 @@ use tempfile::NamedTempFile;
 use ufcs::Pipe;
 
 mod args;
+mod bash;
 mod path_clean;
 mod shebang;
 mod trace;
@@ -263,13 +265,32 @@ fn run_script(
     let inp = args_to_inp(absolute_dirname(&fname), &nix_shell_args);
     let env = cached_shell_env(nix_shell_args.pure, &inp);
 
-    let mut interpreter_args = script_args;
-    interpreter_args.insert(0, fname);
-    let exec = Command::new(nix_shell_args.interpreter)
-        .args(interpreter_args)
-        .env_clear()
-        .envs(&env)
-        .exec();
+    let exec = if is_literal_bash_string(nix_shell_args.interpreter.as_bytes())
+    {
+        // eprintln!("Interpreter is a literal string, executing directly");
+        Command::new(nix_shell_args.interpreter)
+            .arg(fname)
+            .args(script_args)
+            .env_clear()
+            .envs(&env)
+            .exec()
+    } else {
+        // eprintln!("Interpreter is bash command, executing 'bash -c'");
+        let mut exec_string = OsString::new();
+        exec_string.push("exec ");
+        exec_string.push(nix_shell_args.interpreter);
+        exec_string.push(r#" "$@""#);
+        Command::new("bash")
+            .arg("-c")
+            .arg(exec_string)
+            .arg("cached-nix-shell-bash") // corresponds to "$0" inside '-i'
+            .arg(fname)
+            .args(script_args)
+            .env_clear()
+            .envs(&env)
+            .exec()
+    };
+
     eprintln!("cached-nix-shell: couldn't run: {:?}", exec);
     exit(1);
 }
