@@ -215,7 +215,11 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             exit(code);
         }
         let mut env = deserealize_env(exec.stdout);
+        // Drop session variables exported by bash
+        env.remove(OsStr::new("OLDPWD"));
         env.remove(OsStr::new("PWD"));
+        env.remove(OsStr::new("SHLVL"));
+        env.remove(OsStr::new("_"));
         env
     };
 
