@@ -15,4 +15,4 @@ jobs:
     - name: Install and test cached-nix-shell
       run: nix-env -i -f default.nix && ./tests/run.sh
     - name: Test nix-trace
-      run: make -C ./nix-trace test
+      run: nix-shell ./default.nix --run 'make -C ./nix-trace test'
