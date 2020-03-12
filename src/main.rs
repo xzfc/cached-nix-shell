@@ -2,6 +2,7 @@ use crate::args::Args;
 use crate::bash::is_literal_bash_string;
 use crate::path_clean::PathClean;
 use crate::trace::Trace;
+use itertools::Itertools;
 use std::collections::{BTreeMap, HashSet};
 use std::env::current_dir;
 use std::ffi::{OsStr, OsString};
@@ -118,6 +119,7 @@ fn minimal_essential_path() -> OsString {
         .unwrap()
         .pipe(std::env::split_paths)
         .filter(|path_item| required_paths.contains(path_item))
+        .unique()
         .pipe(std::env::join_paths)
         .unwrap()
 }
