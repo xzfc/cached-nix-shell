@@ -194,4 +194,9 @@ check_stderr_contains "^evaluating file '/"
 run cached-nix-shell -vp --run :
 check_fast
 
+if [ "$result" = 0 ]; then
+	printf "\n\33[32mAll tests passed\33[m\n"
+else
+	printf "\n\33[31mSome tests failed\33[m\n"
+fi
 exit $result
