@@ -472,8 +472,9 @@ fn main() {
             None => format!(""),
         };
         println!(
-            "cached-nix-shell: {}{}",
+            "cached-nix-shell: {}{}{}",
             env!("CARGO_PKG_VERSION"),
+            option_env!("CNS_VERSION_SUFFIX").unwrap_or(""),
             git_commit
         );
         let exec = Command::new("nix-shell").arg("--version").exec();

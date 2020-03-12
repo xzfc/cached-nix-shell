@@ -4,5 +4,5 @@ in with pkgs;
 mkShell {
   buildInputs = main.buildInputs ++ main.nativeBuildInputs
     ++ [ niv nixfmt rustfmt ];
-  inherit (main) BLAKE3_CSRC;
+  inherit (main) BLAKE3_CSRC CNS_VERSION_SUFFIX;
 }

@@ -14,6 +14,7 @@ in (naersk.buildPackage {
   buildInputs = [ pkgs.openssl pkgs.ronn ];
 }).overrideAttrs (_: {
   CNS_IN_NIX_BUILD = "1";
+  CNS_VERSION_SUFFIX = "-next";
   # FIXME: https://github.com/xzfc/cached-nix-shell/issues/2
   # CNS_GIT_COMMIT = pkgs.lib.commitIdFromGitRepo ./.git;
   BLAKE3_CSRC = "${blake3-src}/c";
