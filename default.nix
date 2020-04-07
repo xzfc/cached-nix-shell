@@ -6,8 +6,8 @@ let
   blake3-src = pkgs.fetchFromGitHub {
     owner = "BLAKE3-team";
     repo = "BLAKE3";
-    rev = "c-0.2.2";
-    sha256 = "1xsh8hf3xmi42h6aszgn58kwrrc1s7rpximil3k1gzq7878fw3bc";
+    rev = "0.3.1";
+    sha256 = "0wkxx2w56hsng28p8zpndsy288ix4s5qg6xqjzgjz53fbyk46hda";
   };
 in (naersk.buildPackage {
   root = gitignoreSource ./.;
