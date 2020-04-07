@@ -13,7 +13,6 @@ in (naersk.buildPackage {
   root = gitignoreSource ./.;
   buildInputs = [ pkgs.openssl pkgs.ronn ];
 }).overrideAttrs (_: {
-  CNS_IN_NIX_BUILD = "1";
   CNS_GIT_COMMIT = if builtins.pathExists ./.git then
     pkgs.lib.commitIdFromGitRepo ./.git
   else

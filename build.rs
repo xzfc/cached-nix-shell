@@ -15,7 +15,8 @@ fn main() {
         .unwrap();
     assert!(cmd.success());
 
-    if var_os("CNS_IN_NIX_BUILD").is_some() {
+    if var_os("CNS_IN_NIX_SHELL").is_none() {
+        // Use paths relative to $out (which is set by nix-build).
         let out = var("out").unwrap();
         println!("cargo:rustc-env=CNS_TRACE_NIX_SO={}/lib/trace-nix.so", out);
         println!("cargo:rustc-env=CNS_VAR_EMPTY={}/var/empty", out);
@@ -24,6 +25,7 @@ fn main() {
             out
         );
     } else {
+        // Use paths relative to $PWD. Suitable for developing.
         println!("cargo:rustc-env=CNS_TRACE_NIX_SO={}/trace-nix.so", out_dir);
         println!("cargo:rustc-env=CNS_VAR_EMPTY=/var/empty");
         println!(
