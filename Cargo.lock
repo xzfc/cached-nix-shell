@@ -36,7 +36,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "cached-nix-shell"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "blake3 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytelines 2.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
