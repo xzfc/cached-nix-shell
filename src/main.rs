@@ -466,25 +466,6 @@ fn cache_symlink(hash: &str, ext: &str, target: &str) {
 fn main() {
     let argv: Vec<OsString> = std::env::args_os().collect();
 
-    if argv.len() == 2 && argv[1] == "--version" {
-        let git_commit = match option_env!("CNS_GIT_COMMIT") {
-            Some(x) => format!("-{}", x),
-            None => format!(""),
-        };
-        println!(
-            "cached-nix-shell: {}{}{}",
-            env!("CARGO_PKG_VERSION"),
-            option_env!("CNS_VERSION_SUFFIX").unwrap_or(""),
-            git_commit
-        );
-        let exec = Command::new("nix-shell").arg("--version").exec();
-        eprintln!(
-            "cached-nix-shell: couldn't run nix-shell --version {:?}",
-            exec
-        );
-        exit(1);
-    }
-
     if argv.len() >= 2 {
         let fname = &argv[1];
         if let Some(nix_shell_args) = shebang::parse_script(fname) {

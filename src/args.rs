@@ -13,6 +13,7 @@
 use std::collections::VecDeque;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
+use std::process::exit;
 use ufcs::Pipe;
 
 pub enum RunMode {
@@ -130,6 +131,8 @@ impl Args {
             } else if arg == "--exec" && !in_shebang {
                 res.run = RunMode::Exec(next()?, it.into());
                 break;
+            } else if arg == "--version" {
+                exit_version();
             } else if arg.as_bytes().first() == Some(&b'-') {
                 return Err(format!("unexpected arg {:?}", arg));
             } else {
@@ -169,6 +172,17 @@ fn get_next_arg(it: &mut VecDeque<OsString>) -> Option<OsString> {
 
 fn is_alpha(b: u8) -> bool {
     b'a' <= b && b <= b'z' || b'A' <= b && b <= b'Z'
+}
+
+fn exit_version() {
+    println!(
+        "cached-nix-shell v{}{}",
+        env!("CARGO_PKG_VERSION"),
+        option_env!("CNS_GIT_COMMIT")
+            .map(|x| format!("-{}", x))
+            .unwrap_or("".into())
+    );
+    exit(0);
 }
 
 #[cfg(test)]
