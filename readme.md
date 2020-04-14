@@ -1,6 +1,7 @@
 # cached-nix-shell
 [![Build Status](https://img.shields.io/github/workflow/status/xzfc/cached-nix-shell/Test/master?logo=github)](https://github.com/xzfc/cached-nix-shell/actions?query=workflow%3ATest+branch%3Amaster)
 ![License](https://img.shields.io/badge/license-Unlicense%20OR%20MIT-blue)
+[![Nixpkgs unstable package](https://repology.org/badge/version-for-repo/nix_unstable/cached-nix-shell.svg)](https://nixos.org/nixos/packages.html?attr=cached-nix-shell&channel=nixpkgs-unstable&query=cached-nix-shell)
 
 `cached-nix-shell` is a caching layer for `nix-shell` featuring instant startup time on subsequent runs.
 
@@ -8,8 +9,14 @@ It supports NixOS and Linux.
 
 ## Installation
 
+Install the release version from Nixpkgs:
 ```sh
-nix-env -i -f https://github.com/xzfc/cached-nix-shell/tarball/master
+nix-env -iA nixpkgs.cached-nix-shell
+```
+
+Or, install the latest development version from GitHub:
+```sh
+nix-env -if https://github.com/xzfc/cached-nix-shell/tarball/master
 ```
 
 ## Usage
