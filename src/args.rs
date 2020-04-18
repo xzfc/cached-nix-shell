@@ -34,6 +34,8 @@ pub struct Args {
     pub interpreter: OsString,
     /// --run | --command | --exec (not in shebang)
     pub run: RunMode,
+    /// --keep
+    pub keep: Vec<OsString>,
     /// other positional arguments (after --)
     pub rest: Vec<OsString>,
     /// other keyword arguments
@@ -92,6 +94,7 @@ impl Args {
             pure: false,
             interpreter: OsString::from("bash"),
             run: RunMode::InteractiveShell,
+            keep: Vec::new(),
             rest: Vec::new(),
             other_kw: Vec::new(),
             weak_kw: Vec::new(),
@@ -131,6 +134,8 @@ impl Args {
             } else if arg == "--exec" && !in_shebang {
                 res.run = RunMode::Exec(next()?, it.into());
                 break;
+            } else if arg == "--keep" {
+                res.keep.push(next()?);
             } else if arg == "--version" {
                 exit_version();
             } else if arg.as_bytes().first() == Some(&b'-') {

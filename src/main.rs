@@ -170,6 +170,13 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
                 clean_env.insert(OsString::from(var), val);
             }
         }
+        for var in x.keep.iter() {
+            if let Some(val) = std::env::var_os(var) {
+                clean_env.insert(var.clone(), val);
+                args.push("--keep".into());
+                args.push(var.clone());
+            }
+        }
         clean_env.insert(OsString::from("PATH"), minimal_essential_path());
         clean_env
     };
