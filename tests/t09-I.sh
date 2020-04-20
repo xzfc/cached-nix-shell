@@ -1,3 +1,7 @@
+#!/bin/sh
+. ./lib.sh
+
+run_inline << 'EOF'
 #! /usr/bin/env cached-nix-shell
 --[[
 #! nix-shell -i lua -p "luajit.withPackages (p: [ p.basexx ] )"
@@ -5,3 +9,5 @@
 --]]
 
 print(require("basexx").to_base64("hello"))
+EOF
+check_contains "aGVsbG8="
