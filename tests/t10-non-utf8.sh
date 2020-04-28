@@ -66,3 +66,21 @@ run cached-nix-shell ./tmp/shellhook.nix --pure --keep VAR_IN \
 	--run 'printf "%s\n" "$VAR_OUT"'
 check_contains '^out:VAR_IN=aM-pb\^@$'
 unset VAR_IN
+
+
+# Non-utf8 evaluation result
+put ./tmp/evaluation.nix << EOF # unquoted
+with import <nixpkgs> { };
+mkShell {
+  "VAR1" = "A${F0}B";
+  "VAR${F1}2" = "CD";
+}
+EOF
+
+run cached-nix-shell ./tmp/evaluation.nix --pure \
+	--run 'env -0 | LANG=C grep -z "^VAR1=" | cat -v'
+check_contains '^VAR1=AM-pB\^@$'
+
+run cached-nix-shell ./tmp/evaluation.nix --pure \
+	--run 'env -0 | LANG=C grep -z "^VAR.2=" | cat -v'
+check_contains '^VARM-q2=CD\^@$'
