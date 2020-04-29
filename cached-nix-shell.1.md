@@ -31,6 +31,9 @@ Additionally, the following new option is unique for `cached-nix-shell`:
 
 ## LIMITATIONS
 
+It is necessary to pass `--keep` _var_ even without `--pure` if the variable _var_ is used inside a nix expression.
+Note that updating the value of _var_ would invalidate the cache.
+
 Accessing network resources (e.g. via `builtins.fetchurl`) is not considered in cache invalidation logic.
 Consequently, `tarball-ttl` option (see `nix-conf`(5)) is not respected.
 
