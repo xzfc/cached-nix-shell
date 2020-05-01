@@ -69,7 +69,7 @@ static void __attribute__((constructor)) init() {
 
 int __lxstat(int ver, const char *path, struct stat *sb) {
 	static char *buf = NULL;
-	static size_t buf_len = 0;
+	static off_t buf_len = 0;
 
 	int result = REAL(__lxstat)(ver, path, sb);
 
@@ -207,7 +207,7 @@ static void hash_file(char digest_s[static LEN*2+1], int fd) {
 }
 
 static int strcmp_qsort(const void *a, const void *b) {
-	return strcmp(*(const char**)a, *(const char **)b);
+	return strcmp(*(const char* const*)a, *(const char * const*)b);
 }
 
 static void hash_dir(char digest_s[static LEN*2+1], DIR *dirp) {
@@ -218,7 +218,7 @@ static void hash_dir(char digest_s[static LEN*2+1], DIR *dirp) {
 		FATAL();
 
 	struct dirent *ent;
-	while (ent = readdir(dirp)) {
+	while ((ent = readdir(dirp))) {
 		if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
 			continue;
 
@@ -244,13 +244,13 @@ static void hash_dir(char digest_s[static LEN*2+1], DIR *dirp) {
 	uint8_t digest_b[LEN];
 	blake3_hasher hasher;
 	blake3_hasher_init(&hasher);
-	for (int i = 0; i < n; i++)
+	for (size_t i = 0; i < n; i++)
 		blake3_hasher_update(&hasher, entries[i], strlen(entries[i])+1);
 	blake3_hasher_finalize(&hasher, digest_b, LEN);
 	convert_digest(digest_s, digest_b);
 
 	// Memory cleanup
-	for (int i = 0; i < n; i++)
+	for (size_t i = 0; i < n; i++)
 		free(entries[i]);
 	free(entries);
 
