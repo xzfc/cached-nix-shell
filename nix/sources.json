@@ -1,14 +1,26 @@
 {
+    "BLAKE3": {
+        "branch": "0.3.3",
+        "description": "official implementations of the BLAKE3 cryptographic hash function",
+        "homepage": "",
+        "owner": "BLAKE3-team",
+        "repo": "BLAKE3",
+        "rev": "0db6fddc86c2d35a125ec8fff22bcc09f61d3c84",
+        "sha256": "0av41ld0gqf3g60gcllpz59nqlr7r62v99mgfq9gs0p8diw5gi7x",
+        "type": "tarball",
+        "url": "https://github.com/BLAKE3-team/BLAKE3/archive/0db6fddc86c2d35a125ec8fff22bcc09f61d3c84.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
     "gitignore": {
         "branch": "master",
         "description": "Nix function for filtering local git sources",
         "homepage": "",
         "owner": "hercules-ci",
         "repo": "gitignore",
-        "rev": "7415c4feb127845553943a3856cbc5cb967ee5e0",
-        "sha256": "1zd1ylgkndbb5szji32ivfhwh04mr1sbgrnvbrqpmfb67g2g3r9i",
+        "rev": "00b237fb1813c48e20ee2021deb6f3f03843e9e4",
+        "sha256": "186pvp1y5fid8mm8c7ycjzwzhv7i6s3hh33rbi05ggrs7r3as3yy",
         "type": "tarball",
-        "url": "https://github.com/hercules-ci/gitignore/archive/7415c4feb127845553943a3856cbc5cb967ee5e0.tar.gz",
+        "url": "https://github.com/hercules-ci/gitignore/archive/00b237fb1813c48e20ee2021deb6f3f03843e9e4.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "naersk": {
@@ -17,10 +29,10 @@
         "homepage": "",
         "owner": "nmattia",
         "repo": "naersk",
-        "rev": "be6d7bfe6132d7b0bf93fa754f35fb6be516b25f",
-        "sha256": "05d0wkzaa3wp2jl4aqmrgwxq7r21vwc5s2q50ljbc42f3hl4jdmz",
+        "rev": "a82fd7dc31a58c462b6dfa9d9d886fa2cc75dfd4",
+        "sha256": "00bjwir52y6jbf0b22qy9qxramw35k5fc7kp9hymr1zgpmw9kbwg",
         "type": "tarball",
-        "url": "https://github.com/nmattia/naersk/archive/be6d7bfe6132d7b0bf93fa754f35fb6be516b25f.tar.gz",
+        "url": "https://github.com/nmattia/naersk/archive/a82fd7dc31a58c462b6dfa9d9d886fa2cc75dfd4.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }

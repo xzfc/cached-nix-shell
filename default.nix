@@ -3,12 +3,7 @@ let
   sources = import ./nix/sources.nix;
   naersk = pkgs.callPackage sources.naersk { };
   gitignoreSource = (pkgs.callPackage sources.gitignore { }).gitignoreSource;
-  blake3-src = pkgs.fetchFromGitHub {
-    owner = "BLAKE3-team";
-    repo = "BLAKE3";
-    rev = "0.3.1";
-    sha256 = "0wkxx2w56hsng28p8zpndsy288ix4s5qg6xqjzgjz53fbyk46hda";
-  };
+  blake3-src = sources.BLAKE3;
 in (naersk.buildPackage {
   root = gitignoreSource ./.;
   buildInputs = [ pkgs.openssl pkgs.ronn ];
