@@ -1,0 +1,11 @@
+shell=dash
+
+# SC2016: Expressions don't expand in single quotes, use double quotes for that.
+# cached-nix-shell -p --run 'echo $x'
+#                           ^-------^
+disable=SC2016
+
+# SC2119: Use run_inline "$@" if function's $1 should mean script's $1.
+# run_inline << 'EOF'
+# ^-----------------^
+disable=SC2119

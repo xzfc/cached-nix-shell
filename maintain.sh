@@ -18,6 +18,9 @@ update)
 	cargo update || rc=1
 	niv update || rc=1
 	;;
+lint)
+	cd tests/ && shellcheck *.sh || rc=1
+	;;
 test)
 	cargo test &&
 	./tests/run.sh &&
