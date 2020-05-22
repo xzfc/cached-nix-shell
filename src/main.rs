@@ -13,6 +13,7 @@ use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::{exit, Command};
+use std::time::Instant;
 use tempfile::NamedTempFile;
 use ufcs::Pipe;
 
@@ -361,7 +362,9 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
         env
     } else {
         eprintln!("cached-nix-shell: updating cache");
+        let start = Instant::now();
         let outp = run_nix_shell(inp);
+        eprintln!("cached-nix-shell: done in {:?}", start.elapsed());
 
         // TODO: use flock
         cache_write(&inputs_hash, "inputs", &inputs);
