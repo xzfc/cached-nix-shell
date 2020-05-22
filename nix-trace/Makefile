@@ -9,7 +9,7 @@ BLAKE3_FLAGS := \
 
 ${DESTDIR}/trace-nix.so: trace-nix.c
 	@mkdir -p ${DESTDIR}
-	${CC} -fPIC -shared -o $@ $< ${BLAKE3_FLAGS} -ldl
+	${CC} -fPIC -shared -o $@ $< ${BLAKE3_FLAGS}
 
 test: build/trace-nix.so
 	./test.sh
