@@ -26,8 +26,8 @@ pub enum RunMode {
 }
 
 pub struct Args {
-    /// true: -p | --packages
-    pub packages: bool,
+    /// true: -p | --packages | -E | --expr
+    pub packages_or_expr: bool,
     /// true: --pure; false: --impure
     pub pure: bool,
     /// -i (in shebang)
@@ -90,7 +90,7 @@ impl Args {
         in_shebang: bool,
     ) -> Result<Args, String> {
         let mut res = Args {
-            packages: false,
+            packages_or_expr: false,
             pure: false,
             interpreter: OsString::from("bash"),
             run: RunMode::InteractiveShell,
@@ -125,8 +125,13 @@ impl Args {
                 res.pure = true;
             } else if arg == "--impure" {
                 res.pure = false;
-            } else if arg == "--packages" || arg == "-p" {
-                res.packages = true;
+            } else if arg == "-p"
+                || arg == "--packages"
+                || arg == "-E"
+                || arg == "--expr"
+            {
+                res.packages_or_expr = true;
+                res.other_kw.push(arg);
             } else if arg == "-i" && in_shebang {
                 res.interpreter = next()?;
             } else if (arg == "--run" || arg == "--command") && !in_shebang {

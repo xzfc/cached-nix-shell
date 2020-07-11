@@ -47,6 +47,24 @@ check_fast
 
 
 
+run cached-nix-shell -E 'with import <nixpkgs> { }; mkShell { buildInputs = [ lua ]; }' --run 'lua -v'
+check_contains "Lua.org"
+check_slow
+
+run cached-nix-shell -E 'with import <nixpkgs> { }; mkShell { buildInputs = [ lua ]; }' --run 'lua -v'
+check_contains "Lua.org"
+check_fast
+
+run cached-nix-shell -E 'with import <nixpkgs> { }; mkShell { buildInputs = [ luajit ]; }' --run 'lua -v'
+check_contains "http://luajit.org/"
+check_slow
+
+run cached-nix-shell -E 'with import <nixpkgs> { }; mkShell { buildInputs = [ luajit ]; }' --run 'lua -v'
+check_contains "http://luajit.org/"
+check_fast
+
+
+
 # Check various paths to use the same .nix file.
 put +x ./tmp/lua.nix << 'EOF'
 with import <nixpkgs> { }; mkShell { buildInputs = [ lua ]; }

@@ -182,10 +182,6 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
         clean_env
     };
 
-    if x.packages {
-        args.push(OsString::from("--packages"));
-    }
-
     args.push(OsString::from("--run"));
     args.push(OsString::from("env -0"));
     args.extend(x.other_kw.clone());
@@ -312,7 +308,7 @@ fn run_script(
 fn run_from_args(args: Vec<OsString>) {
     let mut args = Args::parse(args, false).pipe(unwrap_or_errx);
 
-    let nix_shell_pwd = if args.packages {
+    let nix_shell_pwd = if args.packages_or_expr {
         OsString::from(env!("CNS_VAR_EMPTY"))
     } else if let Some(arg) = args.rest.first_mut() {
         let pwd = absolute_dirname(arg);
