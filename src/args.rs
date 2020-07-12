@@ -143,6 +143,8 @@ impl Args {
                 res.keep.push(next()?);
             } else if arg == "--version" {
                 exit_version();
+            } else if arg == "--wrap" && !in_shebang {
+                return Err("--wrap should be the first argument".to_string());
             } else if arg.as_bytes().first() == Some(&b'-') {
                 return Err(format!("unexpected arg {:?}", arg));
             } else {

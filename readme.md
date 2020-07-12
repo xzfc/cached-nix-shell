@@ -36,6 +36,12 @@ $ cached-nix-shell ./hello.py
 $ cached-nix-shell -p python3 --run 'python --version'
 ```
 
+Or use the `--wrap` option for programs that call `nix-shell` internally.
+
+```sh
+$ cached-nix-shell --wrap stack build
+```
+
 ## Performance
 
 ```

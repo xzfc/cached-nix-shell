@@ -3,6 +3,7 @@ use crate::bash::is_literal_bash_string;
 use crate::path_clean::PathClean;
 use crate::trace::Trace;
 use itertools::Itertools;
+use nix::unistd::{access, AccessFlags};
 use std::collections::{BTreeMap, HashSet};
 use std::env::current_dir;
 use std::ffi::{OsStr, OsString};
@@ -11,7 +12,7 @@ use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{exit, Command};
 use std::time::Instant;
 use tempfile::NamedTempFile;
@@ -95,19 +96,30 @@ struct NixShellOutput {
 fn minimal_essential_path() -> OsString {
     let required_binaries = ["nix-shell", "tar", "gzip", "git"];
 
-    let which_dir = |binary: &&str| -> Option<PathBuf> {
+    fn which_dir(binary: &&str) -> Option<PathBuf> {
         std::env::var_os("PATH")
             .as_ref()
             .unwrap()
             .pipe(std::env::split_paths)
             .find(|dir| {
-                nix::unistd::access(
-                    &dir.join(binary),
-                    nix::unistd::AccessFlags::X_OK,
-                )
-                .is_ok()
+                if access(&dir.join(binary), AccessFlags::X_OK).is_err() {
+                    return false;
+                }
+
+                if binary == &"nix-shell" {
+                    // Ignore our fake nix-shell.
+                    return !dir
+                        .join(binary)
+                        .canonicalize()
+                        .ok()
+                        .and_then(|x| x.file_name().map(|x| x.to_os_string()))
+                        .map(|x| x == "cached-nix-shell")
+                        .unwrap_or(true);
+                }
+
+                true
             })
-    };
+    }
 
     let required_paths = required_binaries
         .iter()
@@ -469,8 +481,47 @@ fn cache_symlink(hash: &str, ext: &str, target: &str) {
     }
 }
 
+fn wrap(cmd: Vec<OsString>) {
+    if cmd.len() == 0 {
+        eprintln!("cached-nix-shell: command not specified");
+        eprintln!("usage: cached-nix-shell --wrap COMMAND ARGS...");
+        exit(1);
+    }
+
+    if access(
+        Path::new(&format!("{}/nix-shell", env!("CNS_WRAP_PATH"))),
+        AccessFlags::X_OK,
+    )
+    .is_err()
+    {
+        eprintln!(
+            "cached-nix-shell: couldn't wrap, {}/nix-shell is not executable",
+            env!("CNS_WRAP_PATH")
+        );
+        exit(1);
+    }
+
+    let new_path = [
+        env!("CNS_WRAP_PATH").as_bytes(),
+        b":",
+        std::env::var_os("PATH").unwrap().as_bytes(),
+    ]
+    .concat();
+
+    let exec = Command::new(&cmd[0])
+        .args(&cmd[1..])
+        .env("PATH", OsStr::from_bytes(&new_path))
+        .exec();
+    eprintln!("cached-nix-shell: couldn't run: {}", exec);
+    exit(1);
+}
+
 fn main() {
     let argv: Vec<OsString> = std::env::args_os().collect();
+
+    if argv.len() >= 2 && argv[1] == "--wrap" {
+        wrap(std::env::args_os().skip(2).collect());
+    }
 
     if argv.len() >= 2 {
         let fname = &argv[1];

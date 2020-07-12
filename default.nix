@@ -17,9 +17,18 @@ in (naersk.buildPackage {
     ronn -r cached-nix-shell.1.md
   '';
   postInstall = ''
-    mkdir -p $out/lib $out/share/cached-nix-shell $out/share/man/man1 $out/var/empty
-    cp target/release/build/cached-nix-shell-*/out/trace-nix.so $out/lib
-    cp rcfile.sh $out/share/cached-nix-shell/rcfile.sh
-    cp cached-nix-shell.1 $out/share/man/man1
+    mkdir -p $out/lib
+    cp target/release/build/cached-nix-shell-*/out/trace-nix.so $out/lib/
+
+    mkdir -p $out/share/cached-nix-shell
+    cp rcfile.sh $out/share/cached-nix-shell/
+
+    mkdir -p $out/share/man/man1
+    cp cached-nix-shell.1 $out/share/man/man1/
+
+    mkdir -p $out/libexec/cached-nix-shell
+    ln -s $out/bin/cached-nix-shell $out/libexec/cached-nix-shell/nix-shell
+
+    mkdir -p $out/var/empty
   '';
 })

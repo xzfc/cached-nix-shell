@@ -2,7 +2,8 @@
 
 ## SYNOPSIS
 
-`cached-nix-shell [`_options_`]...`<br>
+`cached-nix-shell` \[_options_]...<br>
+`cached-nix-shell --wrap` _cmd_ \[_args_]...<br>
 
 `#! /usr/bin/env cached-nix-shell`<br>
 `#! nix-shell -i` _real-interpreter_ `-p` _packages_<br>
@@ -17,12 +18,16 @@ The design goal is to make a fast drop-in replacement for `nix-shell`, including
 `cached-nix-shell` supports the majority of `nix-shell` options,
   see the corresponding man page for the list.
 
-Additionally, the following new option is unique for `cached-nix-shell`:
+Additionally, the following new options are unique for `cached-nix-shell`:
 
 * `--exec` _cmd_ \[_args_]... (not in shebang):
   Command and arguments to be executed.
   It is similar to `--run` except that the command is executed directly rather than as shell command.
   It should be slightly faster and more convenient to pass arguments.
+
+* `--wrap` _cmd_ \[_args_]... (not in shebang, should be the first arg):
+  Run the command substituting every invocation of `nix-shell` with `cached-nix-shell`.
+  This is done by adding a fake `nix-shell` to the `$PATH`.
 
 ## ENVIRONMENT VARIABLES
 
