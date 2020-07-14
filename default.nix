@@ -7,7 +7,7 @@ let
 in (naersk.buildPackage {
   root = gitignoreSource ./.;
   buildInputs = [ pkgs.openssl pkgs.ronn ];
-}).overrideAttrs (_: {
+}).overrideAttrs (attrs: {
   CNS_GIT_COMMIT = if builtins.pathExists ./.git then
     pkgs.lib.commitIdFromGitRepo ./.git
   else

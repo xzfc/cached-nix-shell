@@ -1,7 +1,9 @@
 no-default-target: ; @false
 
+VERSION := $(shell sed < Cargo.toml -n 's/^version *= *"\(.*\)".*/\1/p')
+
 post-build:
-	ronn -r cached-nix-shell.1.md
+	ronn --organization="cached-nix-shell ${VERSION}" -r cached-nix-shell.1.md
 
 post-install:
 	mkdir -p ${out}/lib
