@@ -1,33 +1,29 @@
-#!/bin/sh
+#!/usr/bin/env bash
+trap rc=1 ERR; rc=0; case $1 in ################################################
+################################################################################
 
-rc=0
-
-case $1 in
-install)
+''install)
 	nix-env -i -f default.nix
-	;;
-build-nix)
+
+;;build-nix)
 	nix-build default.nix
-	;;
-format)
+
+;;format)
 	nixfmt default.nix shell.nix
 	cargo fmt
-	;;
-update)
-	cargo upgrade || rc=1
-	cargo update || rc=1
-	niv update || rc=1
-	;;
-lint)
-	cd tests/ && shellcheck *.sh || rc=1
-	;;
-test)
-	cargo test &&
-	./tests/run.sh &&
-	make -C ./nix-trace test &&
-	echo ok
-	;;
-*) exit 1;
-esac
 
-exit $rc
+;;update)
+	cargo upgrade
+	cargo update
+	niv update
+
+;;lint)
+	cd tests/ && shellcheck *.sh
+
+;;test)
+	cargo test
+	./tests/run.sh
+	make -C ./nix-trace test
+
+################################################################################
+;;*) cat $0; rc=1; esac; exit $rc ##############################################
