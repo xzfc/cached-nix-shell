@@ -14,6 +14,7 @@ at_exit() {
 	local end_t
 	end_t=$(date +%s)
 	set -- tmp/cache/cached-nix-shell/*.env
+	[ -f "$1" ] || shift
 	printf "\33[1m* rc:%s seconds:%s entries:%s\33[m\n" \
 		"$rc" "$((end_t - begin_t))" "$#"
 	exit "$rc"
