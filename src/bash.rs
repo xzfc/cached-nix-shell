@@ -16,3 +16,16 @@ pub fn is_literal_bash_string(command: &[u8]) -> bool {
     }
     true
 }
+
+pub fn quote(arg: &[u8]) -> Vec<u8> {
+    let mut result = vec![b'\''];
+    for &i in arg {
+        if i == b'\'' {
+            result.extend_from_slice(br#"'\''"#)
+        } else {
+            result.push(i)
+        }
+    }
+    result.push(b'\'');
+    result
+}

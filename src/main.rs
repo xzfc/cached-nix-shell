@@ -7,13 +7,13 @@ use nix::unistd::{access, AccessFlags};
 use std::collections::{BTreeMap, HashSet};
 use std::env::current_dir;
 use std::ffi::{OsStr, OsString};
-use std::fs::{read_link, File};
+use std::fs::{read, read_link, File};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
-use std::process::{exit, Command};
+use std::process::{exit, Command, Stdio};
 use std::time::Instant;
 use tempfile::NamedTempFile;
 use ufcs::Pipe;
@@ -194,8 +194,6 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
         clean_env
     };
 
-    args.push(OsString::from("--run"));
-    args.push(OsString::from("env -0"));
     args.extend(x.other_kw.clone());
     args.push(OsString::from("--"));
     args.extend(x.rest.clone());
@@ -211,8 +209,17 @@ fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
 fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
     let trace_file = NamedTempFile::new().expect("can't create temporary file");
 
+    let env_file = NamedTempFile::new().expect("can't create temporary file");
+    let env_cmd = [
+        b"env -0 > ",
+        bash::quote(env_file.path().as_os_str().as_bytes()).as_slice(),
+    ]
+    .concat();
+
     let env = {
-        let exec = Command::new("nix-shell")
+        let status = Command::new("nix-shell")
+            .arg("--run")
+            .arg(OsStr::from_bytes(&env_cmd))
             .args(&inp.weak_args)
             .args(&inp.args)
             .stderr(std::process::Stdio::inherit())
@@ -221,18 +228,20 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             .envs(&inp.env)
             .env("LD_PRELOAD", env!("CNS_TRACE_NIX_SO"))
             .env("TRACE_NIX", trace_file.path())
-            .output()
+            .stdin(Stdio::null())
+            .status()
             .expect("failed to execute nix-shell");
-        if !exec.status.success() {
-            eprintln!("cached-nix-shell: nix-shell: {}", exec.status);
-            let code = exec
-                .status
+        if !status.success() {
+            eprintln!("cached-nix-shell: nix-shell: {}", status);
+            let code = status
                 .code()
-                .or_else(|| exec.status.signal().map(|x| x + 127))
+                .or_else(|| status.signal().map(|x| x + 127))
                 .unwrap_or(255);
             exit(code);
         }
-        let mut env = deserealize_env(exec.stdout);
+        let mut env = read(env_file.path())
+            .expect("can't read an environment file")
+            .pipe(deserealize_env);
         // Drop session variables exported by bash
         env.remove(OsStr::new("OLDPWD"));
         env.remove(OsStr::new("PWD"));
