@@ -441,18 +441,12 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
     let drv_fname = xdg_dirs.find_cache_file(format!("{}.drv", hash))?;
     let trace_fname = xdg_dirs.find_cache_file(format!("{}.trace", hash))?;
 
-    let mut env_file = File::open(env_fname).unwrap();
-    let mut env_buf = Vec::<u8>::new();
-    env_file.read_to_end(&mut env_buf).unwrap();
-    let env = deserealize_env(env_buf);
+    let env = read(env_fname).unwrap().pipe(deserealize_env);
 
     let drv_store_fname = read_link(drv_fname).ok()?;
     std::fs::metadata(drv_store_fname).ok()?;
 
-    let mut trace_file = File::open(trace_fname).unwrap();
-    let mut trace_buf = Vec::<u8>::new();
-    trace_file.read_to_end(&mut trace_buf).unwrap();
-    let trace = Trace::load(trace_buf);
+    let trace = read(trace_fname).unwrap().pipe(Trace::load);
     if trace.check_for_changes() {
         return None;
     }

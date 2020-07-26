@@ -1,8 +1,8 @@
 use itertools::Itertools;
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::{read_dir, read_link, symlink_metadata, File};
-use std::io::Read;
+use std::fs::{read, read_dir, read_link, symlink_metadata};
+use std::io::ErrorKind;
 use std::os::unix::ffi::OsStrExt;
 
 /// Output of trace-nix.so, sorted and deduplicated.
@@ -62,20 +62,15 @@ fn check_item_updated(k: &[u8], v: &[u8]) -> bool {
                 }
             }
         },
-        Some(b'f') => match File::open(fname) {
-            Ok(mut file) => {
-                let mut data = Vec::new();
-                match file.read_to_end(&mut data) {
-                    Ok(_) => {
-                        tmp = OsString::from(
-                            &blake3::hash(&data).to_hex().as_str()[..32],
-                        );
-                        tmp.as_os_str()
-                    }
-                    Err(_) => OsStr::new("e"),
-                }
+        Some(b'f') => match read(fname) {
+            Ok(data) => {
+                tmp = OsString::from(
+                    &blake3::hash(&data).to_hex().as_str()[..32],
+                );
+                tmp.as_os_str()
             }
-            Err(_) => OsStr::new("-"),
+            Err(ref e) if e.kind() == ErrorKind::NotFound => OsStr::new("-"),
+            Err(_) => OsStr::new("e"),
         },
         Some(b'd') => {
             tmp = hash_dir(fname);
