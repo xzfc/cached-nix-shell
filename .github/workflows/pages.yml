@@ -1,0 +1,30 @@
+name: Pages
+on:
+  push:
+    branches:
+    - master
+    paths:
+    - cached-nix-shell.1.md
+    - Cargo.toml # Trigger the action on releases
+    - .github/workflows/pages.yml
+jobs:
+  pages:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: git fetch --prune --unshallow --tags
+    - uses: cachix/install-nix-action@v10
+    - run: nix-env -iA nixpkgs.ronn
+    - name: Build man page
+      run: |
+        ronn --organization="$(git describe --tags)" --style toc -5 cached-nix-shell.1.md
+        mkdir pages
+        mv ./cached-nix-shell.1.html pages
+    - name: Deploy
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./pages
+        user_name: github-actions[bot]
+        user_email: github-actions[bot]@users.noreply.github.com
+        commit_message: Regenerate man page
