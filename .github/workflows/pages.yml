@@ -10,7 +10,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: git fetch --prune --unshallow --tags
-    - run: sudo apt-get install ronn
+    - uses: cachix/install-nix-action@v10
+    - run: nix-env -iA nixpkgs.ronn
     - name: Build man page
       run: |
         ronn --organization="$(git describe --tags)" --style toc -5 cached-nix-shell.1.md
