@@ -8,7 +8,7 @@ Run `nix-shell` (or `nix repl` or any other nix tool) with the `TRACE_NIX` envir
 
 Example:
 ``` bash
-LD_PRELOAD=/path/to/intercept.so TRACE_NIX=./log nix-shell -p stdenv --run :
+LD_PRELOAD=/path/to/trace-nix.so TRACE_NIX=./log nix-shell -p stdenv --run :
 
 # The NUL-separated list of entries will be stored in `./log`
 ```
