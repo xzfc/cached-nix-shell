@@ -28,3 +28,4 @@ jobs:
         publish_dir: ./pages
         user_name: github-actions[bot]
         user_email: github-actions[bot]@users.noreply.github.com
+        commit_message: Regenerate man page
