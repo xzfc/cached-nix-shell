@@ -15,6 +15,7 @@ jobs:
     - name: Build man page
       run: |
         ronn --organization="$(git describe --tags)" --style toc -5 cached-nix-shell.1.md
+        false
         mkdir pages
         mv ./cached-nix-shell.1.html pages
     - name: Deploy
