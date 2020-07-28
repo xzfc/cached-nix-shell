@@ -12,10 +12,10 @@ jobs:
     - run: git fetch --prune --unshallow --tags
     - run: sudo apt-get install ronn
     - name: Build man page
-      run:
-      - ronn --organization="$(git describe --tags)" --style toc -5 cached-nix-shell.1.md
-      - mkdir pages
-      - mv ./cached-nix-shell.1.html pages
+      run: |
+        ronn --organization="$(git describe --tags)" --style toc -5 cached-nix-shell.1.md
+        mkdir pages
+        mv ./cached-nix-shell.1.html pages
     - name: Deploy
       uses: peaceiris/actions-gh-pages@v3
       with:
