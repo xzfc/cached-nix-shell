@@ -2,8 +2,11 @@ name: Pages
 on:
   push:
     branches:
-    - main
+    - master
     - test-pages
+    paths:
+    - /cached-nix-shell.1.md
+    - /Cargo.toml # Trigger the action on releases
 jobs:
   pages:
     runs-on: ubuntu-latest
