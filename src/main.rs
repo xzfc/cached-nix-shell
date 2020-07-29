@@ -4,6 +4,7 @@ use crate::path_clean::PathClean;
 use crate::trace::Trace;
 use itertools::Itertools;
 use nix::unistd::{access, AccessFlags};
+use once_cell::sync::Lazy;
 use std::collections::{BTreeMap, HashSet};
 use std::env::current_dir;
 use std::ffi::{OsStr, OsString};
@@ -25,6 +26,11 @@ mod shebang;
 mod trace;
 
 type EnvMap = BTreeMap<OsString, OsString>;
+
+static XDG_DIRS: Lazy<xdg::BaseDirectories> = Lazy::new(|| {
+    xdg::BaseDirectories::with_prefix("cached-nix-shell")
+        .expect("Can't get find base cache directory")
+});
 
 /// Serialize environment variables in the same way as `env -0` does.
 fn serialize_env(env: &EnvMap) -> Vec<u8> {
@@ -452,12 +458,9 @@ fn merge_env(mut env: EnvMap) -> EnvMap {
 }
 
 fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
-    let xdg_dirs =
-        xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
-
-    let env_fname = xdg_dirs.find_cache_file(format!("{}.env", hash))?;
-    let drv_fname = xdg_dirs.find_cache_file(format!("{}.drv", hash))?;
-    let trace_fname = xdg_dirs.find_cache_file(format!("{}.trace", hash))?;
+    let env_fname = XDG_DIRS.find_cache_file(format!("{}.env", hash))?;
+    let drv_fname = XDG_DIRS.find_cache_file(format!("{}.drv", hash))?;
+    let trace_fname = XDG_DIRS.find_cache_file(format!("{}.trace", hash))?;
 
     let env = read(env_fname).unwrap().pipe(deserealize_env);
 
@@ -474,9 +477,7 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
 
 fn cache_write(hash: &str, ext: &str, text: &[u8]) {
     let f = || -> Result<(), std::io::Error> {
-        let xdg_dirs =
-            xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
-        let fname = xdg_dirs.place_cache_file(format!("{}.{}", hash, ext))?;
+        let fname = XDG_DIRS.place_cache_file(format!("{}.{}", hash, ext))?;
         let mut file = File::create(fname)?;
         file.write_all(text)?;
         Ok(())
@@ -489,9 +490,7 @@ fn cache_write(hash: &str, ext: &str, text: &[u8]) {
 
 fn cache_symlink(hash: &str, ext: &str, target: &str) {
     let f = || -> Result<(), std::io::Error> {
-        let xdg_dirs =
-            xdg::BaseDirectories::with_prefix("cached-nix-shell").unwrap();
-        let fname = xdg_dirs.place_cache_file(format!("{}.{}", hash, ext))?;
+        let fname = XDG_DIRS.place_cache_file(format!("{}.{}", hash, ext))?;
         let _ = std::fs::remove_file(&fname);
         std::os::unix::fs::symlink(target, &fname)?;
         Ok(())
