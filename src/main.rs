@@ -81,7 +81,7 @@ fn unwrap_or_errx<T>(x: Result<T, String>) -> T {
 }
 
 struct NixShellInput {
-    pwd: OsString,
+    pwd: PathBuf,
     env: EnvMap,
     args: Vec<OsString>,
     weak_args: Vec<OsString>,
@@ -137,26 +137,24 @@ fn minimal_essential_path() -> OsString {
         .unwrap()
 }
 
-fn absolute_dirname(script_fname: &OsStr) -> OsString {
-    std::path::PathBuf::from(script_fname)
+fn absolute_dirname(script_fname: &OsStr) -> PathBuf {
+    Path::new(&script_fname)
         .parent()
         .expect("Can't get script dirname")
-        .pipe(|parent| {
-            if parent.is_absolute() {
-                parent.as_os_str().to_os_string()
-            } else {
-                // We do not use PathBuf::canonicalize() here since we do not
-                // want symlink resolving.
-                current_dir()
-                    .expect("Can't get cwd")
-                    .join(parent)
-                    .clean()
-                    .into_os_string()
-            }
-        })
+        .pipe(absolute)
 }
 
-fn args_to_inp(pwd: OsString, x: &Args) -> NixShellInput {
+fn absolute(path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        // We do not use PathBuf::canonicalize() here since we do not want
+        // symlink resolving.
+        current_dir().expect("Can't get PWD").join(path).clean()
+    }
+}
+
+fn args_to_inp(pwd: PathBuf, x: &Args) -> NixShellInput {
     let mut args = Vec::new();
 
     args.push(OsString::from("--pure"));
@@ -329,20 +327,40 @@ fn run_script(
 fn run_from_args(args: Vec<OsString>) {
     let mut args = Args::parse(args, false).pipe(unwrap_or_errx);
 
+    // Normalize PWD.
     let nix_shell_pwd = if args.packages_or_expr {
-        OsString::from(env!("CNS_VAR_EMPTY"))
+        // in:  nix-shel -p ...
+        // out: cd /var/empty; nix-shell -p ...
+        PathBuf::from(env!("CNS_VAR_EMPTY"))
     } else if let Some(arg) = args.rest.first_mut() {
-        let pwd = absolute_dirname(arg);
-        *arg = PathBuf::from(&arg)
-            .components()
-            .next_back()
-            .unwrap()
-            .pipe(|x| PathBuf::from(".").join(x))
-            .into_os_string();
-        pwd
+        if arg == "" {
+            // in:  nix-shell ""
+            // out: cd $PWD; nix-shell ""
+            // nix-shell "" will use ./default.nix
+            current_dir().expect("Can't get PWD")
+        } else if arg.as_bytes().ends_with(b"/") || Path::new(arg).is_dir() {
+            // in:  nix-shell /path/to/dir
+            // out: cd /path/to/dir; nix-shell .
+            let pwd = absolute(Path::new(arg));
+            *arg = OsString::from(".");
+            pwd
+        } else {
+            // in:  nix-shell /path/to/file
+            // out: cd /path/to; nix-shell ./file
+            let pwd = absolute_dirname(arg);
+            *arg = PathBuf::from(&arg)
+                .components()
+                .next_back()
+                .unwrap()
+                .pipe(|x| PathBuf::from(".").join(x))
+                .into_os_string();
+            pwd
+        }
     } else {
+        // in:  nix-shell
+        // out: cd $PWD; nix-shell
         // nix-shell will use ./shell.nix or ./default.nix
-        current_dir().expect("Can't get cwd").into_os_string()
+        current_dir().expect("Can't get PWD")
     };
 
     let inp = args_to_inp(nix_shell_pwd, &args);
@@ -370,7 +388,7 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
     let inputs = serialize_vecs(&[
         &serialize_env(&inp.env),
         &serialize_args(&inp.args),
-        inp.pwd.as_bytes(),
+        inp.pwd.as_os_str().as_bytes(),
     ]);
 
     let inputs_hash = blake3::hash(&inputs).to_hex().as_str().to_string();
