@@ -17,10 +17,10 @@
         "homepage": "",
         "owner": "hercules-ci",
         "repo": "gitignore",
-        "rev": "00b237fb1813c48e20ee2021deb6f3f03843e9e4",
-        "sha256": "186pvp1y5fid8mm8c7ycjzwzhv7i6s3hh33rbi05ggrs7r3as3yy",
+        "rev": "c4662e662462e7bf3c2a968483478a665d00e717",
+        "sha256": "1npnx0h6bd0d7ql93ka7azhj40zgjp815fw2r6smg8ch9p7mzdlx",
         "type": "tarball",
-        "url": "https://github.com/hercules-ci/gitignore/archive/00b237fb1813c48e20ee2021deb6f3f03843e9e4.tar.gz",
+        "url": "https://github.com/hercules-ci/gitignore/archive/c4662e662462e7bf3c2a968483478a665d00e717.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "naersk": {
@@ -29,10 +29,10 @@
         "homepage": "",
         "owner": "nmattia",
         "repo": "naersk",
-        "rev": "a82fd7dc31a58c462b6dfa9d9d886fa2cc75dfd4",
-        "sha256": "00bjwir52y6jbf0b22qy9qxramw35k5fc7kp9hymr1zgpmw9kbwg",
+        "rev": "dcee40445cfe301ced2d1b11290d6a94ff3aadb9",
+        "sha256": "0n9d1zirrhi9cr31kbxifrxkk52grbny04xnn1qhmvskyc11pcm4",
         "type": "tarball",
-        "url": "https://github.com/nmattia/naersk/archive/a82fd7dc31a58c462b6dfa9d9d886fa2cc75dfd4.tar.gz",
+        "url": "https://github.com/nmattia/naersk/archive/dcee40445cfe301ced2d1b11290d6a94ff3aadb9.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
