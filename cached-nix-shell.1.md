@@ -48,6 +48,8 @@ Note that updating the value of _var_ would invalidate the cache.
 When `--expr` or `--packages` option is given,
   the cache is evaluated inside a separate empty directory,
   preventing access to relative paths from within nix expressions.
+Contrariwise, when a path to a shebang script or nix file is given,
+  the cache is evaluated in the directory containing that script or file.
 This allows multiple `cached-nix-shell` invocations
   from different directories to reuse the same cache entry.
 
