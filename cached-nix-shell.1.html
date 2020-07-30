@@ -129,6 +129,8 @@ Note that updating the value of <em>var</em> would invalidate the cache.</p></dd
 <dt>Relative paths</dt><dd><p>When <code>--expr</code> or <code>--packages</code> option is given,
 the cache is evaluated inside a separate empty directory,
 preventing access to relative paths from within nix expressions.
+Contrariwise, when a path to a shebang script or nix file is given,
+the cache is evaluated in the directory containing that script or file.
 This allows multiple <code>cached-nix-shell</code> invocations
 from different directories to reuse the same cache entry.</p></dd>
 <dt>Network access</dt><dd><p>Accessing network resources (e.g. via <code>builtins.fetchurl</code>) is not considered in cache invalidation logic.
@@ -151,7 +153,7 @@ but not global shell variables and functions set by <code>setup.sh</code>.</p></
 
 
   <ol class='man-decor man-foot man foot'>
-    <li class='tl'>v0.1.3-15-g13bb210</li>
+    <li class='tl'>v0.1.3-17-g27d1bf5</li>
     <li class='tc'>July 2020</li>
     <li class='tr'>cached-nix-shell(1)</li>
   </ol>
