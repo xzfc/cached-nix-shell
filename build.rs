@@ -3,21 +3,8 @@ use std::path::Path;
 use std::process::Command;
 
 fn main() {
-    let out_dir = var("OUT_DIR").unwrap();
-
-    let cmd = Command::new("make")
-        .args(&[
-            "-C",
-            "nix-trace",
-            &format!("DESTDIR={}", out_dir),
-            &format!("{}/trace-nix.so", out_dir),
-        ])
-        .status()
-        .unwrap();
-    assert!(cmd.success());
-
     if var_os("CNS_IN_NIX_SHELL").is_none() {
-        // Use paths relative to $out (which is set by nix-build).
+        // Release build triggered by nix-build. Use paths relative to $out.
         let out = var("out").unwrap();
         println!("cargo:rustc-env=CNS_TRACE_NIX_SO={}/lib/trace-nix.so", out);
         println!("cargo:rustc-env=CNS_VAR_EMPTY={}/var/empty", out);
@@ -30,7 +17,21 @@ fn main() {
             out
         );
     } else {
-        // Use paths relative to $PWD. Suitable for developing.
+        // Developer build triggered by `nix-shell --run 'cargo build'`.
+        // Use paths relative to the build directory. Additionally, place
+        // trace-nix.so and a symlink to the build directory.
+        let out_dir = var("OUT_DIR").unwrap();
+        let cmd = Command::new("make")
+            .args(&[
+                "-C",
+                "nix-trace",
+                &format!("DESTDIR={}", out_dir),
+                &format!("{}/trace-nix.so", out_dir),
+            ])
+            .status()
+            .unwrap();
+        assert!(cmd.success());
+
         println!("cargo:rustc-env=CNS_TRACE_NIX_SO={}/trace-nix.so", out_dir);
         println!("cargo:rustc-env=CNS_VAR_EMPTY=/var/empty");
         println!(

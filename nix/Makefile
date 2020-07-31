@@ -3,11 +3,12 @@ no-default-target: ; @false
 VERSION := $(shell sed < Cargo.toml -n 's/^version *= *"\(.*\)".*/\1/p')
 
 post-build:
+	make -C nix-trace
 	ronn --organization="cached-nix-shell ${VERSION}" -r cached-nix-shell.1.md
 
 post-install:
 	mkdir -p ${out}/lib
-	cp target/release/build/cached-nix-shell-*/out/trace-nix.so ${out}/lib/
+	cp nix-trace/build/trace-nix.so ${out}/lib
 	
 	mkdir -p ${out}/share/cached-nix-shell
 	cp rcfile.sh ${out}/share/cached-nix-shell/
