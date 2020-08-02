@@ -41,7 +41,7 @@ checksum = "791e4e40d13e1463dee537b254225c12c46ec7328f1817c6264873bc166f615f"
 
 [[package]]
 name = "cached-nix-shell"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "blake3",
  "bytelines",
