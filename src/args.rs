@@ -30,6 +30,8 @@ pub struct Args {
     pub packages_or_expr: bool,
     /// true: --pure; false: --impure
     pub pure: bool,
+    /// -I
+    pub include_nix_path: Vec<OsString>,
     /// -i (in shebang)
     pub interpreter: OsString,
     /// --run | --command | --exec (not in shebang)
@@ -65,7 +67,6 @@ const fn opt(
 
 const OPTIONS_DB: &[NixShellOption] = &[
     opt(false, 1, &["--attr", "-A"]),
-    opt(false, 1, &["-I"]),
     opt(false, 2, &["--arg"]),
     opt(false, 2, &["--argstr"]),
     opt(true, 0, &["--fallback"]),
@@ -92,6 +93,7 @@ impl Args {
         let mut res = Args {
             packages_or_expr: false,
             pure: false,
+            include_nix_path: Vec::new(),
             interpreter: OsString::from("bash"),
             run: RunMode::InteractiveShell,
             keep: Vec::new(),
@@ -125,6 +127,11 @@ impl Args {
                 res.pure = true;
             } else if arg == "--impure" {
                 res.pure = false;
+            } else if arg == "-I" {
+                let path = next()?;
+                res.include_nix_path.push(path.clone());
+                res.other_kw.push(arg);
+                res.other_kw.push(path);
             } else if arg == "-p"
                 || arg == "--packages"
                 || arg == "-E"
