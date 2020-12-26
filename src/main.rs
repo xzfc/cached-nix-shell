@@ -21,6 +21,7 @@ use ufcs::Pipe;
 
 mod args;
 mod bash;
+mod nix_path;
 mod path_clean;
 mod shebang;
 mod trace;
@@ -334,16 +335,32 @@ fn run_from_args(args: Vec<OsString>) {
     let mut args = Args::parse(args, false).pipe(unwrap_or_errx);
 
     // Normalize PWD.
-    let nix_shell_pwd = if args.packages_or_expr {
+    // References:
+    //   https://github.com/NixOS/nix/blob/2.3.10/src/libexpr/common-eval-args.cc#L46-L57
+    //   https://github.com/NixOS/nix/blob/2.3.10/src/nix-build/nix-build.cc#L279-L291
+    let nix_shell_pwd = if nix_path::contains_relative_paths(&args) {
+        // in:  nix-shell -I . ""
+        // out: cd $PWD; nix-shell -I . ""
+        current_dir().expect("Can't get PWD")
+    } else if args.packages_or_expr {
         // in:  nix-shel -p ...
         // out: cd /var/empty; nix-shell -p ...
         PathBuf::from(env!("CNS_VAR_EMPTY"))
-    } else if let Some(arg) = args.rest.first_mut() {
+    } else if let [arg] = &mut args.rest[..] {
         if arg == "" {
             // in:  nix-shell ""
             // out: cd $PWD; nix-shell ""
             // nix-shell "" will use ./default.nix
             current_dir().expect("Can't get PWD")
+        } else if arg.as_bytes().starts_with(b"<")
+            && arg.as_bytes().ends_with(b">")
+            || nix_path::is_uri(arg.as_bytes())
+        {
+            // in:  nix-shell '<foo>'
+            // out: cd /var/empty; nix-shell '<foo>'
+            // in:  nix-shell http://...
+            // out: cd /var/empty; nix-shell http://...
+            PathBuf::from(env!("CNS_VAR_EMPTY"))
         } else if arg.as_bytes().ends_with(b"/") || Path::new(arg).is_dir() {
             // in:  nix-shell /path/to/dir
             // out: cd /path/to/dir; nix-shell .
@@ -366,6 +383,7 @@ fn run_from_args(args: Vec<OsString>) {
         // in:  nix-shell
         // out: cd $PWD; nix-shell
         // nix-shell will use ./shell.nix or ./default.nix
+        // in:  nix-shell foo.nix bar.nix ...
         current_dir().expect("Can't get PWD")
     };
 
