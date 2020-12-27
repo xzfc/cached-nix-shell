@@ -13,8 +13,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - run: git fetch --prune --unshallow --tags
-    - uses: cachix/install-nix-action@v10
-    - run: nix-env -iA nixpkgs.ronn
+    - uses: cachix/install-nix-action@v12
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+    - run: nix-env -f '<nixpkgs>' -iA ronn
     - name: Build man page
       run: |
         ronn --organization="$(git describe --tags)" --style toc -5 cached-nix-shell.1.md
