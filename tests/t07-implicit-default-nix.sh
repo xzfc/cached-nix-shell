@@ -23,7 +23,7 @@ cp ./tmp/luajit.nix ./tmp/foo
 # now ./tmp/foo is a plain .nix file
 
 run cached-nix-shell ./tmp/foo --run 'lua -v'
-check_contains "http://luajit.org/"
+check_contains "https\?://luajit.org/"
 check_slow
 
 

@@ -34,11 +34,11 @@ check_contains "Lua.org"
 check_fast
 
 run ./tmp/luajit.sh
-check_contains "http://luajit.org/"
+check_contains "https\?://luajit.org/"
 check_slow
 
 run ./tmp/luajit.sh
-check_contains "http://luajit.org/"
+check_contains "https\?://luajit.org/"
 check_fast
 
 run ./tmp/lua.lua
@@ -56,11 +56,11 @@ check_contains "Lua.org"
 check_fast
 
 run cached-nix-shell -E 'with import <nixpkgs> { }; mkShell { buildInputs = [ luajit ]; }' --run 'lua -v'
-check_contains "http://luajit.org/"
+check_contains "https\?://luajit.org/"
 check_slow
 
 run cached-nix-shell -E 'with import <nixpkgs> { }; mkShell { buildInputs = [ luajit ]; }' --run 'lua -v'
-check_contains "http://luajit.org/"
+check_contains "https\?://luajit.org/"
 check_fast
 
 

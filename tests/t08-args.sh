@@ -11,17 +11,17 @@ check_contains "gro.auL"
 check_fast
 
 run cached-nix-shell -p luajit --run 'lua -v'
-check_contains "http://luajit.org/"
+check_contains "https\?://luajit.org/"
 check_slow
 
 run cached-nix-shell -p luajit --exec lua -v
-check_contains "http://luajit.org/"
+check_contains "https\?://luajit.org/"
 check_fast
 
 
 # Check argument expanding "-pj16" -> "-p -j 16"
 run cached-nix-shell -pj16 luajit --exec lua -v
-check_contains "http://luajit.org/"
+check_contains "https\?://luajit.org/"
 check_fast
 
 
