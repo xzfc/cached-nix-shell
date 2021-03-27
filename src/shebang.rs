@@ -37,7 +37,7 @@ fn shellwords(s: &[u8]) -> Vec<Vec<u8>> {
     let mut begin = 0;
     let mut cur = Vec::new();
     let mut state = true;
-    while it < s.len() {
+    loop {
         if state {
             if let Some(match_len) = re_whitespaces_len(&s[it..]) {
                 cur.extend_from_slice(&s[begin..it]);
@@ -47,18 +47,19 @@ fn shellwords(s: &[u8]) -> Vec<Vec<u8>> {
                 begin = it;
             }
         }
-        match s[it] {
-            b'"' => {
+        match s.get(it) {
+            Some(b'"') => {
                 cur.extend_from_slice(&s[begin..it]);
                 begin = it + 1;
                 state = !state;
             }
-            b'\\' => {
+            Some(b'\\') => {
                 cur.extend_from_slice(&s[begin..it]);
                 begin = it + 1;
                 it += 1;
             }
-            _ => {}
+            Some(_) => {}
+            None => break,
         }
         it += 1;
     }

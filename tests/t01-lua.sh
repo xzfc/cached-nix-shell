@@ -92,3 +92,13 @@ check_fast
 run env --chdir / cached-nix-shell "$PWD/tmp/lua.nix" --run 'lua -v'
 check_contains "Lua.org"
 check_fast
+
+
+
+# Script with a trailing space in the nix-shell options
+run_inline << 'EOF'
+#!/usr/bin/env cached-nix-shell
+#! nix-shell -i sh -p lua 
+lua -v
+EOF
+check_contains "Lua.org"
