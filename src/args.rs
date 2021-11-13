@@ -12,8 +12,10 @@
 
 use std::collections::VecDeque;
 use std::ffi::{OsStr, OsString};
+use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
-use std::process::exit;
+use std::os::unix::process::CommandExt;
+use std::process::{exit, Command};
 use ufcs::Pipe;
 
 pub enum RunMode {
@@ -201,7 +203,16 @@ fn exit_version() {
             .map(|x| format!("-{}", x))
             .unwrap_or("".into())
     );
-    exit(0);
+    if env!("CNS_NIX").is_empty() {
+        println!("Using nix-shell from $PATH");
+    } else {
+        println!("Using {}nix-shell", env!("CNS_NIX"));
+    }
+    std::io::stdout().flush().unwrap();
+    Command::new(concat!(env!("CNS_NIX"), "nix-shell"))
+        .arg("--version")
+        .exec();
+    exit(1);
 }
 
 #[cfg(test)]

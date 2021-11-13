@@ -16,6 +16,18 @@ fn main() {
             "cargo:rustc-env=CNS_WRAP_PATH={}/libexec/cached-nix-shell",
             out
         );
+
+        // Use pinned nix and nix-shell binaries.
+        println!(
+            "cargo:rustc-env=CNS_NIX={}/",
+            which::which("nix")
+                .expect("command not found: nix")
+                .parent()
+                .unwrap()
+                .as_os_str()
+                .to_str()
+                .unwrap()
+        );
     } else {
         // Developer build triggered by `nix-shell --run 'cargo build'`.
         // Use paths relative to the build directory. Additionally, place
@@ -49,5 +61,8 @@ fn main() {
         )
         .unwrap();
         println!("cargo:rustc-env=CNS_WRAP_PATH={}/wrapper", out_dir);
+
+        // Use nix and nix-shell from $PATH at runtime.
+        println!("cargo:rustc-env=CNS_NIX=");
     }
 }

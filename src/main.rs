@@ -101,7 +101,7 @@ struct NixShellOutput {
 }
 
 fn minimal_essential_path() -> OsString {
-    let required_binaries = ["nix-shell", "tar", "gzip", "git"];
+    let required_binaries = ["tar", "gzip", "git"];
 
     fn which_dir(binary: &&str) -> Option<PathBuf> {
         std::env::var_os("PATH")
@@ -222,7 +222,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
     .concat();
 
     let env = {
-        let status = Command::new("nix-shell")
+        let status = Command::new(concat!(env!("CNS_NIX"), "nix-shell"))
             .arg("--run")
             .arg(OsStr::from_bytes(&env_cmd))
             .args(&inp.weak_args)
@@ -272,14 +272,33 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
     std::mem::drop(trace_file);
 
     let drv: String = {
-        let exec = Command::new("nix")
-            .args(vec![OsStr::new("show-derivation"), env_out])
-            .stderr(std::process::Stdio::inherit())
+        // nix 2.3
+        let mut exec = Command::new(concat!(env!("CNS_NIX"), "nix"))
+            .arg("show-derivation")
+            .arg(env_out)
             .output()
             .expect("failed to execute nix show-derivation");
+        let mut stderr = exec.stderr.clone();
         if !exec.status.success() {
+            // nix 2.4
+            exec = Command::new(concat!(env!("CNS_NIX"), "nix"))
+                .arg("show-derivation")
+                .arg("--extra-experimental-features")
+                .arg("nix-command")
+                .arg(env_out)
+                .output()
+                .expect("failed to execute nix show-derivation");
+            stderr.extend(b"\n");
+            stderr.extend(exec.stderr);
+        }
+        if !exec.status.success() {
+            eprintln!(
+                "cached-nix-shell: failed to execute nix show-derivation"
+            );
+            let _ = std::io::stderr().write_all(&stderr);
             exit(1);
         }
+
         // Path to .drv file is always in ASCII, so no information is lost.
         let output = String::from_utf8_lossy(&exec.stdout);
         let output: serde_json::Value =
