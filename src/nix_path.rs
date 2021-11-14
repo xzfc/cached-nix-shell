@@ -3,12 +3,11 @@ use std::os::unix::ffi::OsStrExt;
 
 /// True if either $NIX_PATH or -I argument contain a relative path.
 pub fn contains_relative_paths(args: &Args) -> bool {
-    let nix_path = std::env::var_os("NIX_PATH");
-    let nix_path = nix_path.as_deref().map(|x| x.as_bytes()).unwrap_or(b"");
+    let nix_path = std::env::var_os("NIX_PATH").unwrap_or("".into());
 
     let include_nix_path = args.include_nix_path.iter().map(|x| x.as_bytes());
 
-    parse_nix_path(nix_path)
+    parse_nix_path(nix_path.as_bytes())
         .into_iter()
         .chain(include_nix_path)
         .any(|x| is_relative(x))
