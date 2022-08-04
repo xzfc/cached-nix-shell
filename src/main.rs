@@ -101,7 +101,7 @@ struct NixShellOutput {
 }
 
 fn minimal_essential_path() -> OsString {
-    let required_binaries = ["tar", "gzip", "git"];
+    let required_binaries = ["tar", "gzip", "git", "nix-shell", "rm"];
 
     fn which_dir(binary: &&str) -> Option<PathBuf> {
         std::env::var_os("PATH")
@@ -232,6 +232,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             .env_clear()
             .envs(&inp.env)
             .env("LD_PRELOAD", env!("CNS_TRACE_NIX_SO"))
+            .env("DYLD_INSERT_LIBRARIES", env!("CNS_TRACE_NIX_SO"))
             .env("TRACE_NIX", trace_file.path())
             .stdin(Stdio::null())
             .status()

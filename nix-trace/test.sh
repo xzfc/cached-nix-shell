@@ -2,13 +2,13 @@
 
 run() {
 	rm -f test-tmp/log
-	LD_PRELOAD=$PWD/build/trace-nix.so TRACE_NIX=test-tmp/log \
+	DYLD_INSERT_LIBRARIES=$PWD/build/trace-nix.so LD_PRELOAD=$PWD/build/trace-nix.so TRACE_NIX=test-tmp/log \
 		nix-shell --run : -p -- "$@" 2>/dev/null
 }
 
 run_without_p() {
 	rm -f test-tmp/log
-	LD_PRELOAD=$PWD/build/trace-nix.so TRACE_NIX=test-tmp/log \
+	DYLD_INSERT_LIBRARIES=$PWD/build/trace-nix.so LD_PRELOAD=$PWD/build/trace-nix.so TRACE_NIX=test-tmp/log \
 		nix-shell --run : -- "$@" 2>/dev/null
 }
 
