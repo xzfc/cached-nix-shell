@@ -17,6 +17,7 @@ EOF
 
 export FOO=foo-value
 unset BAR
+unset TERM
 
 
 run cached-nix-shell -p --run 'echo ${FOO-doesnt-have-foo}'
@@ -48,3 +49,9 @@ check_contains "^prefix:foo-value$"
 check_contains "^bar-value$"
 # TODO: this should not invalidate the cache
 skip check_fast
+
+
+run env TERM=term-value cached-nix-shell -p --pure \
+	--run 'echo ${TERM-doesnt-have-term}'
+check_contains "^term-value$"
+check_fast

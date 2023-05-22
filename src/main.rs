@@ -175,6 +175,8 @@ fn args_to_inp(pwd: PathBuf, x: &Args) -> NixShellInput {
 
     let env = {
         let mut clean_env = BTreeMap::new();
+        // Env vars to pass to `nix-shell --pure`. Changes to these variables
+        // would invalidate the cache.
         let whitelist = &[
             "HOME",
             "NIX_PATH",
@@ -189,6 +191,9 @@ fn args_to_inp(pwd: PathBuf, x: &Args) -> NixShellInput {
             // Necessary if nix build caches are accessed via a proxy
             "http_proxy",
             "https_proxy",
+            "ftp_proxy",
+            "all_proxy",
+            "no_proxy",
         ];
         for var in whitelist {
             if let Some(val) = std::env::var_os(var) {
@@ -497,17 +502,18 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvOptions {
     env.insert(OsString::from("IN_CACHED_NIX_SHELL"), OsString::from("1"));
 
     EnvOptions {
-        env: if pure { env } else { merge_env(env) },
+        env: merge_env(if pure { env } else { merge_impure_env(env) }),
         shellopts,
         bashopts,
     }
 }
 
 // Merge ambient (impure) environment into cached env.
-fn merge_env(mut env: EnvMap) -> EnvMap {
+fn merge_impure_env(mut env: EnvMap) -> EnvMap {
     let mut delim = EnvMap::new();
     delim.insert(OsString::from("PATH"), OsString::from(":"));
     delim.insert(OsString::from("HOST_PATH"), OsString::from(":"));
+    delim.insert(OsString::from("XDG_DATA_DIRS"), OsString::from(":"));
 
     // Set to "/no-cert-file.crt" by setup.sh for pure envs.
     env.remove(OsStr::new("SSL_CERT_FILE"));
@@ -532,6 +538,29 @@ fn merge_env(mut env: EnvMap) -> EnvMap {
             .or_insert_with(|| val);
     }
 
+    env
+}
+
+fn merge_env(mut env: EnvMap) -> EnvMap {
+    // These variables are always passed by the original nix-shell, regardless
+    // of the --pure flag.
+    let keep = &[
+        "USER",
+        "LOGNAME",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "WAYLAND_SOCKET",
+        "TERM",
+        "NIX_SHELL_PRESERVE_PROMPT",
+        "TZ",
+        "PAGER",
+        "SHLVL",
+    ];
+    for var in keep {
+        if let Some(vel) = std::env::var_os(var) {
+            env.insert(OsString::from(var), vel);
+        }
+    }
     env
 }
 
