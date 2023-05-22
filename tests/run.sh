@@ -3,7 +3,8 @@
 set -e
 
 # Check prerequisites
-hash cached-nix-shell cat chmod cp date grep ln mkdir rm tail tee time touch
+hash cached-nix-shell cat chmod cmp cp \
+	date diff env grep ln mkdir rev rm tail tee time touch
 
 trap 'exit 130' INT
 

@@ -11,6 +11,7 @@ use std::ffi::{OsStr, OsString};
 use std::fs::{read, read_link, File};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::prelude::OsStringExt;
 use std::os::unix::process::CommandExt;
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
@@ -27,6 +28,12 @@ mod shebang;
 mod trace;
 
 type EnvMap = BTreeMap<OsString, OsString>;
+
+struct EnvOptions {
+    env: EnvMap,
+    bashopts: OsString,
+    shellopts: OsString,
+}
 
 static XDG_DIRS: Lazy<xdg::BaseDirectories> = Lazy::new(|| {
     xdg::BaseDirectories::with_prefix("cached-nix-shell")
@@ -216,7 +223,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
 
     let env_file = NamedTempFile::new().expect("can't create temporary file");
     let env_cmd = [
-        b"env -0 > ",
+        b"{ printf \"BASHOPTS=%s\\0SHELLOPTS=%s\\0\" \"${BASHOPTS-}\" \"${SHELLOPTS-}\" ; env -0; } >",
         bash::quote(env_file.path().as_os_str().as_bytes()).as_slice(),
     ]
     .concat();
@@ -327,7 +334,7 @@ fn run_script(
             .arg(fname)
             .args(script_args)
             .env_clear()
-            .envs(&env)
+            .envs(&env.env)
             .exec()
     } else {
         // eprintln!("Interpreter is bash command, executing 'bash -c'");
@@ -342,7 +349,7 @@ fn run_script(
             .arg(fname)
             .args(script_args)
             .env_clear()
-            .envs(&env)
+            .envs(&env.env)
             .exec()
     };
 
@@ -409,25 +416,57 @@ fn run_from_args(args: Vec<OsString>) {
     let inp = args_to_inp(nix_shell_pwd, &args);
     let env = cached_shell_env(args.pure, &inp);
 
+    let mut bash_args = Vec::new();
+    // XXX: only check for options that are set by current stdenv and nix-shell.
+    env.bashopts
+        .as_bytes()
+        .split(|&b| b == b':')
+        .filter(|opt| {
+            [b"execfail".as_ref(), b"inherit_errexit", b"nullglob"]
+                .contains(opt)
+        })
+        .for_each(|opt| {
+            bash_args.extend_from_slice(&[
+                "-O".into(),
+                OsString::from_vec(opt.to_vec()),
+            ])
+        });
+    env.shellopts
+        .as_bytes()
+        .split(|&b| b == b':')
+        .filter(|opt| [b"pipefail".as_ref()].contains(opt))
+        .for_each(|opt| {
+            bash_args.extend_from_slice(&[
+                "-o".into(),
+                OsString::from_vec(opt.to_vec()),
+            ])
+        });
+
     let (cmd, cmd_args) = match args.run {
-        args::RunMode::InteractiveShell => (
-            "bash".into(),
-            vec!["--rcfile".into(), env!("CNS_RCFILE").into()],
-        ),
-        args::RunMode::Shell(cmd) => ("bash".into(), vec!["-c".into(), cmd]),
+        args::RunMode::InteractiveShell => {
+            bash_args.extend_from_slice(&[
+                "--rcfile".into(),
+                env!("CNS_RCFILE").into(),
+            ]);
+            ("bash".into(), bash_args)
+        }
+        args::RunMode::Shell(cmd) => {
+            bash_args.extend_from_slice(&["-c".into(), cmd]);
+            ("bash".into(), bash_args)
+        }
         args::RunMode::Exec(cmd, cmd_args) => (cmd, cmd_args),
     };
 
     let exec = Command::new(cmd)
         .args(cmd_args)
         .env_clear()
-        .envs(&env)
+        .envs(&env.env)
         .exec();
     eprintln!("cached-nix-shell: couldn't run: {:?}", exec);
     exit(1);
 }
 
-fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
+fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvOptions {
     let inputs = serialize_vecs(&[
         &serialize_env(&inp.env),
         &serialize_args(&inp.args),
@@ -453,12 +492,14 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvMap {
         outp.env
     };
 
+    let shellopts = env.remove(OsStr::new("SHELLOPTS")).unwrap_or_default();
+    let bashopts = env.remove(OsStr::new("BASHOPTS")).unwrap_or_default();
     env.insert(OsString::from("IN_CACHED_NIX_SHELL"), OsString::from("1"));
 
-    if pure {
-        env
-    } else {
-        merge_env(env)
+    EnvOptions {
+        env: if pure { env } else { merge_env(env) },
+        shellopts,
+        bashopts,
     }
 }
 
