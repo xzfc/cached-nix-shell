@@ -15,8 +15,6 @@ trap rc=1 ERR; rc=0; case $1 in ################################################
 ;;update)
 	cargo upgrade
 	cargo update
-	cargo update -p remove_dir_all --precise 0.5.2 # 0.5.3 bumps MSRV
-	cargo update -p subtle --precise 2.2.3 # 2.3.0 bumps MSRV
 	niv update
 
 ;;lint)
