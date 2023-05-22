@@ -1,5 +1,5 @@
 # cached-nix-shell
-[![Build Status](https://img.shields.io/github/workflow/status/xzfc/cached-nix-shell/Test/master?logo=github)](https://github.com/xzfc/cached-nix-shell/actions?query=workflow%3ATest+branch%3Amaster)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/xzfc/cached-nix-shell/test.yml?branch=master&logo=github)](https://github.com/xzfc/cached-nix-shell/actions/workflows/test.yml?query=branch%3Amaster)
 ![License](https://img.shields.io/badge/license-Unlicense%20OR%20MIT-blue)
 [![Nixpkgs unstable package](https://repology.org/badge/version-for-repo/nix_unstable/cached-nix-shell.svg)](https://nixos.org/nixos/packages.html?attr=cached-nix-shell&channel=nixpkgs-unstable&query=cached-nix-shell)
 [![Man page](https://img.shields.io/badge/man-cached--nix--shell%281%29-blue)](https://xzfc.github.io/cached-nix-shell/cached-nix-shell.1)
