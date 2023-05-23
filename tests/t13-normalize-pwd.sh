@@ -14,7 +14,7 @@ EOF
 
 check_normalized_pwd() {
 	rm -f "$GOT" tmp/cache/cached-nix-shell/*
-	run env --chdir "$1" cached-nix-shell --keep GOT "$2" --run :
+	run --chdir "$1" cached-nix-shell --keep GOT "$2" --run :
 	check "got $(cat tmp/got)" cmp -s tmp/expected tmp/got
 }
 

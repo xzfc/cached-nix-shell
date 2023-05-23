@@ -6,7 +6,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,16 +15,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-static pthread_mutex_t mutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 static FILE *log_f = NULL;
 static const char *pwd = NULL;
-
-static int (*real___lxstat)(int ver, const char *path, struct stat *buf) = NULL;
-static int (*real_open)(const char *path, int flags, ...) = NULL;
-static DIR *(*real_opendir)(const char *name) = NULL;
-
-#define REAL(FUN) \
-	(real_##FUN == NULL ? (real_##FUN = dlsym(RTLD_NEXT, #FUN)) : real_##FUN)
 
 #define FATAL() \
 	do { \
@@ -36,6 +27,28 @@ static DIR *(*real_opendir)(const char *name) = NULL;
 
 #define LEN 16
 
+// Locks
+
+#ifdef __APPLE__
+
+#include <dispatch/dispatch.h>
+static dispatch_semaphore_t print_mutex;
+static dispatch_semaphore_t buf_mutex;
+#define INIT_MUTEX(MUTEX) MUTEX = dispatch_semaphore_create(1)
+#define LOCK(MUTEX) dispatch_semaphore_wait(MUTEX, DISPATCH_TIME_FOREVER)
+#define UNLOCK(MUTEX) dispatch_semaphore_signal(MUTEX)
+
+#else
+
+#include <pthread.h>
+static pthread_mutex_t print_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t buf_mutex = PTHREAD_MUTEX_INITIALIZER;
+#define INIT_MUTEX(MUTEX)
+#define LOCK(MUTEX) pthread_mutex_lock(&MUTEX)
+#define UNLOCK(MUTEX) pthread_mutex_unlock(&MUTEX)
+
+#endif
+
 // Predeclarations
 
 static void convert_digest(char [static LEN*2+1], const uint8_t [static LEN]);
@@ -43,14 +56,17 @@ static int enable(const char *);
 static void hash_dir(char [static LEN*2+1], DIR *);
 static void hash_file(char [static LEN*2+1], int);
 static void print_log(char, const char *, const char *);
+static void print_stat(int result, const char *path, struct stat *sb);
 static int strcmp_qsort(const void *, const void *);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static void __attribute__((constructor)) init() {
-	// Remove ourselves from LD_PRLOAD. We do not want to log child processes.
+	// Remove ourselves from LD_PRELOAD and DYLD_INSERT_LIBRARIES.
+	// We do not want to log child processes.
 	// TODO: use `ld.so --preload` instead
 	unsetenv("LD_PRELOAD");
+	unsetenv("DYLD_INSERT_LIBRARIES");
 
 	const char *fname = getenv("TRACE_NIX");
 	if (fname != NULL) {
@@ -60,47 +76,54 @@ static void __attribute__((constructor)) init() {
 				strerror(errno));
 			errno = 0;
 		}
+#ifdef __APPLE__
+		pwd = getcwd(NULL, 0);
+#else
 		pwd = get_current_dir_name();
+#endif
 		if (pwd == NULL)
 			FATAL();
 	}
 	unsetenv("TRACE_NIX");
+
+	INIT_MUTEX(print_mutex);
+	INIT_MUTEX(buf_mutex);
 }
 
-int __lxstat(int ver, const char *path, struct stat *sb) {
-	static char *buf = NULL;
-	static off_t buf_len = 0;
+#ifdef __APPLE__
 
-	int result = REAL(__lxstat)(ver, path, sb);
+#define WRAPPER(RET, FUN, ARGS) \
+	static RET _cns_wrapper_##FUN ARGS; \
+	__attribute__((used)) static void *_cns_interpose_##FUN[2] \
+	__attribute__((section("__DATA,__interpose"))) = { &_cns_wrapper_##FUN, &FUN }; \
+	static RET _cns_wrapper_##FUN ARGS
+#define REAL(FUN) FUN
 
-	if (enable(path)) {
-		if (result != 0) {
-			print_log('s', path, "-");
-		} else if (S_ISLNK(sb->st_mode)) {
-			pthread_mutex_lock(&mutex);
-			if (buf_len < sb->st_size + 2) {
-				buf_len = sb->st_size + 2;
-				buf = realloc(buf, buf_len);
-				if (buf == NULL)
-					FATAL();
-			}
-			ssize_t link_len = readlink(path, buf+1, sb->st_size);
-			if (link_len < 0 || link_len != sb->st_size)
-				FATAL();
-			buf[0] = 'l';
-			buf[sb->st_size+1] = 0;
-			print_log('s', path, buf);
-			pthread_mutex_unlock(&mutex);
-		} else if (S_ISDIR(sb->st_mode)) {
-			print_log('s', path, "d");
-		} else {
-			print_log('s', path, "+");
-		}
-	}
+#else
+
+#define WRAPPER(RET, FUN, ARGS) \
+	static RET (*_cns_real_##FUN)ARGS = NULL; \
+	RET FUN ARGS
+#define REAL(FUN) \
+	(_cns_real_##FUN == NULL ? (_cns_real_##FUN = dlsym(RTLD_NEXT, #FUN)) : _cns_real_##FUN)
+
+#endif
+
+WRAPPER(int, lstat, (const char *path, struct stat *sb)) {
+	int result = REAL(lstat)(path, sb);
+	print_stat(result, path, sb);
 	return result;
-} 
+}
 
-int open(const char *path, int flags, ...) {
+#ifdef __linux__
+WRAPPER(int, __lxstat, (int ver, const char *path, struct stat *sb)) {
+	int result = REAL(__lxstat)(ver, path, sb);
+	print_stat(result, path, sb);
+	return result;
+}
+#endif
+
+WRAPPER(int, open, (const char *path, int flags, ...)) {
 	va_list args;
 	va_start(args, flags);
 	int mode = va_arg(args, int);
@@ -121,7 +144,7 @@ int open(const char *path, int flags, ...) {
 	return fd;
 }
 
-DIR *opendir(const char *path) {
+WRAPPER(DIR *, opendir, (const char *path)) {
 	DIR *dirp = REAL(opendir)(path);
 	if (enable(path)) {
 		if (dirp == NULL) {
@@ -164,8 +187,38 @@ static int enable(const char *path) {
 	return 1;
 }
 
+static void print_stat(int result, const char *path, struct stat *sb) {
+	static char *buf = NULL;
+	static off_t buf_len = 0;
+
+	if (enable(path)) {
+		if (result != 0) {
+			print_log('s', path, "-");
+		} else if (S_ISLNK(sb->st_mode)) {
+			LOCK(buf_mutex);
+			if (buf_len < sb->st_size + 2) {
+				buf_len = sb->st_size + 2;
+				buf = realloc(buf, buf_len);
+				if (buf == NULL)
+					FATAL();
+			}
+			ssize_t link_len = readlink(path, buf+1, sb->st_size);
+			if (link_len < 0 || link_len != sb->st_size)
+				FATAL();
+			buf[0] = 'l';
+			buf[sb->st_size+1] = 0;
+			print_log('s', path, buf);
+						UNLOCK(buf_mutex);
+		} else if (S_ISDIR(sb->st_mode)) {
+			print_log('s', path, "d");
+		} else {
+			print_log('s', path, "+");
+		}
+	}
+}
+
 static void print_log(char op, const char *path, const char *result) {
-	pthread_mutex_lock(&mutex);
+	LOCK(print_mutex);
 	fprintf(
 		log_f,
 		"%c" "%s%s" "%s%c" "%s%c",
@@ -175,7 +228,7 @@ static void print_log(char op, const char *path, const char *result) {
 		result, (char)0
 	);
 	fflush(log_f);
-	pthread_mutex_unlock(&mutex);
+	UNLOCK(print_mutex);
 }
 
 static void hash_file(char digest_s[static LEN*2+1], int fd) {
@@ -223,7 +276,8 @@ static void hash_dir(char digest_s[static LEN*2+1], DIR *dirp) {
 			continue;
 
 		if (n+1 >= entries_total) {
-			entries = reallocarray(entries, entries_total *= 2, sizeof(char*));
+			entries_total *= 2;
+			entries = realloc(entries, entries_total * sizeof(char*));
 			if (entries == NULL)
 				FATAL();
 		}

@@ -81,15 +81,15 @@ run cached-nix-shell ./tmp/lua.nix --run 'lua -v'
 check_contains "Lua.org"
 check_fast
 
-run env --chdir tmp cached-nix-shell ./lua.nix --run 'lua -v'
+run --chdir tmp cached-nix-shell ./lua.nix --run 'lua -v'
 check_contains "Lua.org"
 check_fast
 
-run env --chdir tmp cached-nix-shell lua.nix --run 'lua -v'
+run --chdir tmp cached-nix-shell lua.nix --run 'lua -v'
 check_contains "Lua.org"
 check_fast
 
-run env --chdir / cached-nix-shell "$PWD/tmp/lua.nix" --run 'lua -v'
+run --chdir / cached-nix-shell "$PWD/tmp/lua.nix" --run 'lua -v'
 check_contains "Lua.org"
 check_fast
 

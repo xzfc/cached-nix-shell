@@ -10,43 +10,52 @@ put ./tmp/empty << 'EOF'
 {}
 EOF
 
+# Get default NIX_PATH in case it's not set. Do not export it to not interfere
+# with tests that do not use it.
+[ "${NIX_PATH:-}" ] || NIX_PATH="$(
+	nix-instantiate --eval -E '
+		builtins.concatStringsSep ":"
+		(map (a: (if a.prefix == "" then "" else a.prefix + "=") + a.path)
+		builtins.nixPath)
+	' | tr -d '"')"
+
 ################################################################################
 # <path_variable>
 ################################################################################
 
 # <path_variable>, absolute NIX_PATH
 
-run env            "NIX_PATH=$PWD/tmp:$NIX_PATH"         cached-nix-shell '<foo>' --run 'echo $VAR'
+run            env "NIX_PATH=$PWD/tmp:$NIX_PATH"         cached-nix-shell '<foo>' --run 'echo $VAR'
 check_contains "^val$"
 check_slow
 
-run env --chdir .. "NIX_PATH=$PWD/tmp:$NIX_PATH"         cached-nix-shell '<foo>' --run 'echo $VAR'
+run --chdir .. env "NIX_PATH=$PWD/tmp:$NIX_PATH"         cached-nix-shell '<foo>' --run 'echo $VAR'
 check_contains "^val$"
 check_fast
 
-run env            "NIX_PATH=bar=$PWD/tmp/foo:$NIX_PATH" cached-nix-shell '<bar>' --run 'echo $VAR'
+run            env "NIX_PATH=bar=$PWD/tmp/foo:$NIX_PATH" cached-nix-shell '<bar>' --run 'echo $VAR'
 check_contains "^val$"
 check_slow
 
-run env --chdir .. "NIX_PATH=bar=$PWD/tmp/foo:$NIX_PATH" cached-nix-shell '<bar>' --run 'echo $VAR'
+run --chdir .. env "NIX_PATH=bar=$PWD/tmp/foo:$NIX_PATH" cached-nix-shell '<bar>' --run 'echo $VAR'
 check_contains "^val$"
 check_fast
 
 # <path_variable>, absolute -I
 
-run                cached-nix-shell -I "$PWD/tmp"         '<foo>' --run 'echo $VAR'
+run            cached-nix-shell -I "$PWD/tmp"         '<foo>' --run 'echo $VAR'
 check_contains "^val$"
 check_slow
 
-run env --chdir .. cached-nix-shell -I "$PWD/tmp"         '<foo>' --run 'echo $VAR'
+run --chdir .. cached-nix-shell -I "$PWD/tmp"         '<foo>' --run 'echo $VAR'
 check_contains "^val$"
 check_fast
 
-run                cached-nix-shell -I "bar=$PWD/tmp/foo" '<bar>' --run 'echo $VAR'
+run            cached-nix-shell -I "bar=$PWD/tmp/foo" '<bar>' --run 'echo $VAR'
 check_contains "^val$"
 check_slow
 
-run env --chdir .. cached-nix-shell -I "bar=$PWD/tmp/foo" '<bar>' --run 'echo $VAR'
+run --chdir .. cached-nix-shell -I "bar=$PWD/tmp/foo" '<bar>' --run 'echo $VAR'
 check_contains "^val$"
 check_fast
 
@@ -71,7 +80,7 @@ check_contains "^val$"
 ################################################################################
 
 # URI
-run cached-nix-shell https://github.com/NixOS/nixpkgs-channels/archive/nixos-20.03.tar.gz -A lua --run 'env'
+run cached-nix-shell https://github.com/NixOS/nixpkgs/archive/nixos-22.11.tar.gz -A lua --run 'env'
 check_contains '^name=lua-5\..*'
 
 # Multiple .nix files (why it is even supported by nix-shell)
