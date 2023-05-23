@@ -108,7 +108,7 @@ impl Args {
             let mut next = || -> Result<OsString, String> {
                 it.pop_front()
                     .ok_or_else(|| {
-                        format!("flag {:?} requires more arguments", arg)
+                        format!("flag {arg:?} requires more arguments")
                     })?
                     .pipe(Ok)
             };
@@ -155,7 +155,7 @@ impl Args {
             } else if arg == "--wrap" && !in_shebang {
                 return Err("--wrap should be the first argument".to_string());
             } else if arg.as_bytes().first() == Some(&b'-') {
-                return Err(format!("unexpected arg {:?}", arg));
+                return Err(format!("unexpected arg {arg:?}"));
             } else {
                 res.rest.push(arg.clone());
             }
@@ -192,7 +192,7 @@ fn get_next_arg(it: &mut VecDeque<OsString>) -> Option<OsString> {
 }
 
 fn is_alpha(b: u8) -> bool {
-    b'a' <= b && b <= b'z' || b'A' <= b && b <= b'Z'
+    b.is_ascii_lowercase() || b.is_ascii_uppercase()
 }
 
 fn exit_version() {
@@ -200,7 +200,7 @@ fn exit_version() {
         "cached-nix-shell v{}{}",
         env!("CARGO_PKG_VERSION"),
         option_env!("CNS_GIT_COMMIT")
-            .map(|x| format!("-{}", x))
+            .map(|x| format!("-{x}"))
             .unwrap_or("".into())
     );
     if env!("CNS_NIX").is_empty() {

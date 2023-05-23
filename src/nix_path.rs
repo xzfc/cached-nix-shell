@@ -10,7 +10,7 @@ pub fn contains_relative_paths(args: &Args) -> bool {
     parse_nix_path(nix_path.as_bytes())
         .into_iter()
         .chain(include_nix_path)
-        .any(|x| is_relative(x))
+        .any(is_relative)
 }
 
 fn is_relative(b: &[u8]) -> bool {
@@ -100,10 +100,10 @@ mod tests {
             v![b"foo", b"bar=https://something", b"baz"]
         );
 
-        assert_eq!(is_relative(b"foo"), true);
-        assert_eq!(is_relative(b"foo=bar"), true);
-        assert_eq!(is_relative(b"http://foo"), false);
-        assert_eq!(is_relative(b"foo=/bar"), false);
-        assert_eq!(is_relative(b"foo=http://bar"), false);
+        assert!(is_relative(b"foo"));
+        assert!(is_relative(b"foo=bar"));
+        assert!(!is_relative(b"http://foo"));
+        assert!(!is_relative(b"foo=/bar"));
+        assert!(!is_relative(b"foo=http://bar"));
     }
 }

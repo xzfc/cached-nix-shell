@@ -88,7 +88,7 @@ fn unwrap_or_errx<T>(x: Result<T, String>) -> T {
     match x {
         Ok(x) => x,
         Err(x) => {
-            eprintln!("cached-nix-shell: {}", x);
+            eprintln!("cached-nix-shell: {x}");
             exit(1)
         }
     }
@@ -249,7 +249,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             .status()
             .expect("failed to execute nix-shell");
         if !status.success() {
-            eprintln!("cached-nix-shell: nix-shell: {}", status);
+            eprintln!("cached-nix-shell: nix-shell: {status}");
             let code = status
                 .code()
                 .or_else(|| status.signal().map(|x| x + 127))
@@ -358,7 +358,7 @@ fn run_script(
             .exec()
     };
 
-    eprintln!("cached-nix-shell: couldn't run: {:?}", exec);
+    eprintln!("cached-nix-shell: couldn't run: {exec:?}");
     exit(1);
 }
 
@@ -467,7 +467,7 @@ fn run_from_args(args: Vec<OsString>) {
         .env_clear()
         .envs(&env.env)
         .exec();
-    eprintln!("cached-nix-shell: couldn't run: {:?}", exec);
+    eprintln!("cached-nix-shell: couldn't run: {exec:?}");
     exit(1);
 }
 
@@ -565,9 +565,9 @@ fn merge_env(mut env: EnvMap) -> EnvMap {
 }
 
 fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
-    let env_fname = XDG_DIRS.find_cache_file(format!("{}.env", hash))?;
-    let drv_fname = XDG_DIRS.find_cache_file(format!("{}.drv", hash))?;
-    let trace_fname = XDG_DIRS.find_cache_file(format!("{}.trace", hash))?;
+    let env_fname = XDG_DIRS.find_cache_file(format!("{hash}.env"))?;
+    let drv_fname = XDG_DIRS.find_cache_file(format!("{hash}.drv"))?;
+    let trace_fname = XDG_DIRS.find_cache_file(format!("{hash}.trace"))?;
 
     let env = read(env_fname).unwrap().pipe(deserealize_env);
 
@@ -584,32 +584,32 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
 
 fn cache_write(hash: &str, ext: &str, text: &[u8]) {
     let f = || -> Result<(), std::io::Error> {
-        let fname = XDG_DIRS.place_cache_file(format!("{}.{}", hash, ext))?;
+        let fname = XDG_DIRS.place_cache_file(format!("{hash}.{ext}"))?;
         let mut file = File::create(fname)?;
         file.write_all(text)?;
         Ok(())
     };
     match f() {
         Ok(_) => (),
-        Err(e) => eprintln!("Warning: can't store cache: {}", e),
+        Err(e) => eprintln!("Warning: can't store cache: {e}"),
     }
 }
 
 fn cache_symlink(hash: &str, ext: &str, target: &str) {
     let f = || -> Result<(), std::io::Error> {
-        let fname = XDG_DIRS.place_cache_file(format!("{}.{}", hash, ext))?;
+        let fname = XDG_DIRS.place_cache_file(format!("{hash}.{ext}"))?;
         let _ = std::fs::remove_file(&fname);
         std::os::unix::fs::symlink(target, &fname)?;
         Ok(())
     };
     match f() {
         Ok(_) => (),
-        Err(e) => eprintln!("Warning: can't symlink to cache: {}", e),
+        Err(e) => eprintln!("Warning: can't symlink to cache: {e}"),
     }
 }
 
 fn wrap(cmd: Vec<OsString>) {
-    if cmd.len() == 0 {
+    if cmd.is_empty() {
         eprintln!("cached-nix-shell: command not specified");
         eprintln!("usage: cached-nix-shell --wrap COMMAND ARGS...");
         exit(1);
@@ -639,7 +639,7 @@ fn wrap(cmd: Vec<OsString>) {
         .args(&cmd[1..])
         .env("PATH", OsStr::from_bytes(&new_path))
         .exec();
-    eprintln!("cached-nix-shell: couldn't run: {}", exec);
+    eprintln!("cached-nix-shell: couldn't run: {exec}");
     exit(1);
 }
 

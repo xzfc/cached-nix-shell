@@ -6,15 +6,13 @@ fn main() {
     if var_os("CNS_IN_NIX_SHELL").is_none() {
         // Release build triggered by nix-build. Use paths relative to $out.
         let out = var("out").unwrap();
-        println!("cargo:rustc-env=CNS_TRACE_NIX_SO={}/lib/trace-nix.so", out);
-        println!("cargo:rustc-env=CNS_VAR_EMPTY={}/var/empty", out);
+        println!("cargo:rustc-env=CNS_TRACE_NIX_SO={out}/lib/trace-nix.so");
+        println!("cargo:rustc-env=CNS_VAR_EMPTY={out}/var/empty");
         println!(
-            "cargo:rustc-env=CNS_RCFILE={}/share/cached-nix-shell/rcfile.sh",
-            out
+            "cargo:rustc-env=CNS_RCFILE={out}/share/cached-nix-shell/rcfile.sh"
         );
         println!(
-            "cargo:rustc-env=CNS_WRAP_PATH={}/libexec/cached-nix-shell",
-            out
+            "cargo:rustc-env=CNS_WRAP_PATH={out}/libexec/cached-nix-shell"
         );
 
         // Use pinned nix and nix-shell binaries.
@@ -34,33 +32,33 @@ fn main() {
         // trace-nix.so and a symlink to the build directory.
         let out_dir = var("OUT_DIR").unwrap();
         let cmd = Command::new("make")
-            .args(&[
+            .args([
                 "-C",
                 "nix-trace",
-                &format!("DESTDIR={}", out_dir),
-                &format!("{}/trace-nix.so", out_dir),
+                &format!("DESTDIR={out_dir}"),
+                &format!("{out_dir}/trace-nix.so"),
             ])
             .status()
             .unwrap();
         assert!(cmd.success());
 
-        println!("cargo:rustc-env=CNS_TRACE_NIX_SO={}/trace-nix.so", out_dir);
+        println!("cargo:rustc-env=CNS_TRACE_NIX_SO={out_dir}/trace-nix.so");
         println!("cargo:rustc-env=CNS_VAR_EMPTY=/var/empty");
         println!(
             "cargo:rustc-env=CNS_RCFILE={}/rcfile.sh",
             var("CARGO_MANIFEST_DIR").unwrap()
         );
 
-        if Path::new(&format!("{}/wrapper", out_dir)).exists() {
-            std::fs::remove_dir_all(format!("{}/wrapper", out_dir)).unwrap();
+        if Path::new(&format!("{out_dir}/wrapper")).exists() {
+            std::fs::remove_dir_all(format!("{out_dir}/wrapper")).unwrap();
         }
-        std::fs::create_dir_all(format!("{}/wrapper", out_dir)).unwrap();
+        std::fs::create_dir_all(format!("{out_dir}/wrapper")).unwrap();
         std::os::unix::fs::symlink(
             "../../../../cached-nix-shell",
-            format!("{}/wrapper/nix-shell", out_dir),
+            format!("{out_dir}/wrapper/nix-shell"),
         )
         .unwrap();
-        println!("cargo:rustc-env=CNS_WRAP_PATH={}/wrapper", out_dir);
+        println!("cargo:rustc-env=CNS_WRAP_PATH={out_dir}/wrapper");
 
         // Use nix and nix-shell from $PATH at runtime.
         println!("cargo:rustc-env=CNS_NIX=");
