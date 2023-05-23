@@ -6,8 +6,9 @@ F0="$(printf '%b' '\360')"
 F1="$(printf '%b' '\361')"
 
 
-# Non-utf8 PWD
-mkdir ./tmp/a"$F0"b
+# Non-UTF-8 PWD
+# Skip on filesystems that do not support non-UTF-8 paths, e.g. APFS.
+if mkdir ./tmp/a"$F0"b; then
 put ./tmp/a"$F0"b/shell.nix << 'EOF'
 with import <nixpkgs> { }; mkShell { buildInputs = [ lua ]; }
 EOF
@@ -20,20 +21,21 @@ EOF
 
 run cached-nix-shell ./tmp/a"$F0"b/run.sh
 check_contains "Lua.org"
+fi
 
 
-# Non-utf8 environment variable passed to shebang script
+# Non-UTF-8 environment variable passed to shebang script
 export VAR=a"$F0"b
 run_inline << 'EOF'
 #!/usr/bin/env cached-nix-shell
 #! nix-shell -pi sh
-env -0 | LANG=C grep -z "^VAR=" | cat -v
+env -0 | LANG=C grep -az "^VAR=" | cat -v
 EOF
 check_contains '^VAR=aM-pb\^@$'
 unset VAR
 
 
-# Non-utf8 shebang script
+# Non-UTF-8 shebang script
 run_inline << EOF # unquoted
 #!/usr/bin/env cached-nix-shell
 #! nix-shell -pi sh
@@ -42,7 +44,7 @@ EOF
 check_contains '^M-pM-q$'
 
 
-# Non-utf8 shebang script argument
+# Non-UTF-8 shebang script argument
 run_inline foo"$F0"bar << 'EOF'
 #!/usr/bin/env cached-nix-shell
 #! nix-shell -pi sh
@@ -51,7 +53,7 @@ EOF
 check_contains "^!fooM-pbar!$"
 
 
-# Non-utf8 environment variable passed to/exported by setup.sh
+# Non-UTF-8 environment variable passed to/exported by setup.sh
 export VAR_IN=a"$F0"b
 put ./tmp/shellhook.nix << 'EOF'
 with import <nixpkgs> { };
@@ -68,7 +70,7 @@ check_contains '^out:VAR_IN=aM-pb\^@$'
 unset VAR_IN
 
 
-# Non-utf8 evaluation result
+# Non-UTF-8 evaluation result
 put ./tmp/evaluation.nix << EOF # unquoted
 with import <nixpkgs> { };
 mkShell {

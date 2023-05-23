@@ -33,8 +33,15 @@ put() {
 
 run() {
 	rm -f tmp/time tmp/out tmp/err
+	local testtmp=$PWD/tmp
 	printf "\33[33m  * Running %s\33[m\n" "$*"
-	command time -o tmp/time -f "%e" -- "$@" 2>&1 > tmp/out | tee tmp/err
+	(
+		if [ "$1" = "--chdir" ]; then
+			cd "$2"
+			shift 2
+		fi
+		command time -p -o $testtmp/time -- "$@"
+	) 2>&1 > tmp/out | tee tmp/err
 }
 
 inline=0
@@ -63,11 +70,11 @@ check() {
 check_contains() { check "contains $1" grep -q "$1" tmp/out; }
 check_stderr_contains() { check "contains $1" grep -q "$1" tmp/err; }
 check_slow() {
-	check "slow ($(cat tmp/time))" \
+	check "slow ($(sed 's/.* //;q' tmp/time))" \
 		grep -q "^cached-nix-shell: updating cache$" tmp/err
 }
 check_fast() {
-	check "fast ($(cat tmp/time))" \
+	check "fast ($(sed 's/.* //;q' tmp/time))" \
 		not grep -q "^cached-nix-shell: updating cache$" tmp/err
 }
 
