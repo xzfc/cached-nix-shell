@@ -4,9 +4,13 @@ on:
   push:
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: cachix/install-nix-action@v20
       with:
         nix_path: nixpkgs=channel:nixos-unstable
@@ -14,7 +18,9 @@ jobs:
       with:
         name: xzfc
         signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
-    - name: Install and test cached-nix-shell
-      run: nix-env -i -f default.nix && ./tests/run.sh
+    - name: Build and install cached-nix-shell
+      run: nix-env -i -f default.nix
+    - name: Test cached-nix-shell
+      run: ./tests/run.sh
     - name: Test nix-trace
-      run: nix-shell ./default.nix --run 'make -C ./nix-trace test'
+      run: nix-shell -p b3sum --run "nix-shell ./default.nix --run 'make -C ./nix-trace test'"
