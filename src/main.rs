@@ -2,7 +2,7 @@ use crate::args::Args;
 use crate::bash::is_literal_bash_string;
 use crate::path_clean::PathClean;
 use crate::trace::Trace;
-use itertools::Itertools;
+use itertools::{chain, Itertools};
 use nix::unistd::{access, AccessFlags};
 use once_cell::sync::Lazy;
 use std::collections::{BTreeMap, HashSet};
@@ -422,43 +422,16 @@ fn run_from_args(args: Vec<OsString>) {
     let inp = args_to_inp(nix_shell_pwd, &args);
     let env = cached_shell_env(args.pure, &inp);
 
-    let mut bash_args = Vec::new();
-    // XXX: only check for options that are set by current stdenv and nix-shell.
-    env.bashopts
-        .as_bytes()
-        .split(|&b| b == b':')
-        .filter(|opt| {
-            [b"execfail".as_ref(), b"inherit_errexit", b"nullglob"]
-                .contains(opt)
-        })
-        .for_each(|opt| {
-            bash_args.extend_from_slice(&[
-                "-O".into(),
-                OsString::from_vec(opt.to_vec()),
-            ])
-        });
-    env.shellopts
-        .as_bytes()
-        .split(|&b| b == b':')
-        .filter(|opt| [b"pipefail".as_ref()].contains(opt))
-        .for_each(|opt| {
-            bash_args.extend_from_slice(&[
-                "-o".into(),
-                OsString::from_vec(opt.to_vec()),
-            ])
-        });
-
     let (cmd, cmd_args) = match args.run {
         args::RunMode::InteractiveShell => {
-            bash_args.extend_from_slice(&[
-                "--rcfile".into(),
-                env!("CNS_RCFILE").into(),
-            ]);
-            ("bash".into(), bash_args)
+            let mut args = vec!["--rcfile".into(), env!("CNS_RCFILE").into()];
+            args.append(build_bash_options(&env).as_mut());
+            ("bash".into(), args)
         }
         args::RunMode::Shell(cmd) => {
-            bash_args.extend_from_slice(&["-c".into(), cmd]);
-            ("bash".into(), bash_args)
+            let mut args = build_bash_options(&env);
+            args.extend_from_slice(&["-c".into(), cmd]);
+            ("bash".into(), args)
         }
         args::RunMode::Exec(cmd, cmd_args) => (cmd, cmd_args),
     };
@@ -563,6 +536,27 @@ fn merge_env(mut env: EnvMap) -> EnvMap {
         }
     }
     env
+}
+
+fn build_bash_options(env: &EnvOptions) -> Vec<OsString> {
+    // XXX: only check for options that are set by current stdenv and nix-shell.
+    const BASH_OPTIONS: [&[u8]; 3] =
+        [b"execfail", b"inherit_errexit", b"nullglob"];
+    const SHELL_OPTIONS: [&[u8]; 1] = [b"pipefail"];
+    chain!(
+        env.bashopts
+            .as_bytes()
+            .split(|b| *b == b':')
+            .filter(|opt| BASH_OPTIONS.contains(opt))
+            .map(|opt| vec!["-O".into(), OsString::from_vec(opt.to_vec())]),
+        env.shellopts
+            .as_bytes()
+            .split(|b| *b == b':')
+            .filter(|opt| SHELL_OPTIONS.contains(opt))
+            .map(|opt| vec!["-o".into(), OsString::from_vec(opt.to_vec())]),
+    )
+    .flatten()
+    .collect()
 }
 
 fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
