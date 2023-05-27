@@ -29,6 +29,9 @@ open() != -1 && read error:  `f` FILENAME `\0` `e` `\0`
 
 opendir() == NULL:           `d` FILENAME `\0` `-` `\0`
 opendir() != NULL:           `d` FILENAME `\0` b3sum(directory listing) `\0`
+
+mkdir() == 0                 `t` FILENAME `\0` `+` `\0`
+unlinkat() == NULL           `t` FILENAME `\0` `-` `\0`
 ```
 
 Directory listing:

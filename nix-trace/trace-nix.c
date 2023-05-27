@@ -5,6 +5,7 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -17,6 +18,9 @@
 
 static FILE *log_f = NULL;
 static const char *pwd = NULL;
+static char tmp_prefix[PATH_MAX];  // "$TMPDIR/nix-$$-"
+static size_t tmp_prefix_dirname_len = 0;  // Length of "$TMPDIR"
+static size_t tmp_prefix_basename_len = 0;  // Length of "nix-$$-"
 
 #define FATAL() \
 	do { \
@@ -88,6 +92,27 @@ static void __attribute__((constructor)) init() {
 
 	INIT_MUTEX(print_mutex);
 	INIT_MUTEX(buf_mutex);
+
+	// References:
+	//   https://github.com/NixOS/nix/blob/2.15.1/src/libutil/filesystem.cc#L18
+	//   https://github.com/NixOS/nix/blob/2.15.1/src/libutil/util.hh#L337-L338
+	const char *tmpdir = getenv("TMPDIR");
+	if (tmpdir == NULL)
+		tmpdir = "/tmp";
+	const char *tmpdirend = tmpdir + strlen(tmpdir);
+	while (tmpdirend > tmpdir && tmpdirend[-1] == '/')
+		tmpdirend--;
+	int len = snprintf(tmp_prefix, sizeof(tmp_prefix),
+		"%.*s/nix-%" PRIu64 "-",
+		(int)(tmpdirend-tmpdir),
+		tmpdir,
+		(uint64_t)getpid());
+	tmp_prefix_dirname_len = tmpdirend - tmpdir;
+	tmp_prefix_basename_len = len - tmp_prefix_dirname_len - 1;
+	if (len < 0 || len >= sizeof(tmp_prefix)) {
+		fprintf(stderr, "trace-nix: TMPDIR too long\n");
+		tmp_prefix[0] = '\0';
+	}
 }
 
 #ifdef __APPLE__
@@ -156,6 +181,61 @@ WRAPPER(DIR *, opendir, (const char *path)) {
 		}
 	}
 	return dirp;
+}
+
+WRAPPER(int, mkdir, (const char *path, mode_t mode)) {
+	int result = REAL(mkdir)(path, mode);
+	if (result == 0 && *tmp_prefix && memcmp(path, tmp_prefix,
+				tmp_prefix_dirname_len + 1 + tmp_prefix_basename_len) == 0)
+		print_log('t', path, "+");
+	return result;
+}
+
+WRAPPER(int, unlinkat, (int dirfd, const char *path, int flags)) {
+	int result = REAL(unlinkat)(dirfd, path, flags);
+	if (result != 0 || *tmp_prefix == '\0' || flags != AT_REMOVEDIR)
+		return result;
+	size_t path_len = strlen(path);
+	if (path_len > 45) // 45 == len(f"nix-{2**64}-{2**64}")
+		return result;
+	// Check that the path starts with 'nix-$$-' and do not contain slash.
+	if (memcmp(path, tmp_prefix + tmp_prefix_dirname_len + 1, tmp_prefix_basename_len) != 0 ||
+		strchr(path + tmp_prefix_dirname_len + 1 + tmp_prefix_basename_len, '/'))
+		return result;
+
+#ifdef __linux__
+	char file_path[tmp_prefix_dirname_len + 1 + path_len + 1];
+	char fd_path[35]; // 35 == len(f"/proc/self/fd/{2**64}") + 1
+	snprintf(fd_path, sizeof fd_path, "/proc/self/fd/%d", dirfd);
+	ssize_t len = readlink(fd_path, file_path, tmp_prefix_dirname_len + 1);
+	if (len == -1 && errno == ENAMETOOLONG || len != tmp_prefix_dirname_len)
+		return result;
+	if (len == -1) {
+		// TODO: also readlink tmp_prefix to canonicalize it
+		fprintf(stderr, "trace-nix: readlink(%s): %s\n", fd_path, strerror(errno));
+		return result;
+	}
+#elif defined(__APPLE__)
+	char file_path[MAXPATHLEN];
+	if (fcntl(dirfd, F_GETPATH, file_path) == -1) {
+		fprintf(stderr, "trace-nix: fcntl(%d, F_GETPATH): %s\n", dirfd, strerror(errno));
+		return result;
+	}
+#else
+#warning "Not implemented for this platform"
+	return result;
+#endif
+	if (memcmp(file_path, tmp_prefix, tmp_prefix_dirname_len) != 0 ||
+			file_path[tmp_prefix_dirname_len] != 0)
+		return result;
+	if (tmp_prefix_dirname_len + 1 + path_len + 1 > sizeof file_path) {
+		fprintf(stderr, "trace-nix: path too long: %s/%s\n", file_path, path);
+		return result;
+	}
+	file_path[tmp_prefix_dirname_len] = '/';
+	memcpy(file_path + tmp_prefix_dirname_len + 1, path, path_len + 1);
+	print_log('t', file_path, "-");
+	return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
