@@ -8,7 +8,7 @@ use once_cell::sync::Lazy;
 use std::collections::{BTreeMap, HashSet};
 use std::env::current_dir;
 use std::ffi::{OsStr, OsString};
-use std::fs::{read, read_link, File};
+use std::fs::{read, File};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::prelude::OsStringExt;
@@ -22,6 +22,7 @@ use ufcs::Pipe;
 
 mod args;
 mod bash;
+mod drv;
 mod nix_path;
 mod path_clean;
 mod shebang;
@@ -566,8 +567,10 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
 
     let env = read(env_fname).unwrap().pipe(deserealize_env);
 
-    let drv_store_fname = read_link(drv_fname).ok()?;
-    std::fs::metadata(drv_store_fname).ok()?;
+    if let Err(e) = drv::derivation_is_ok(drv_fname) {
+        eprintln!("cached-nix-shell: {}", e);
+        return None;
+    }
 
     let trace = read(trace_fname).unwrap().pipe(Trace::load_sorted);
     if trace.check_for_changes() {
