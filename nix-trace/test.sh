@@ -3,7 +3,7 @@
 run() {
 	rm -f test-tmp/log
 	DYLD_INSERT_LIBRARIES=$PWD/build/trace-nix.so LD_PRELOAD=$PWD/build/trace-nix.so TRACE_NIX=test-tmp/log \
-		nix-shell --run : -p -- "$@" 2>/dev/null
+		nix-shell --run : -p -- "$@" # 2>/dev/null
 }
 
 run_without_p() {
@@ -48,12 +48,21 @@ echo '"foo"' > test-tmp/test.nix
 : > test-tmp/empty
 ln -s empty test-tmp/link
 
+mkdir test-tmp/repo
+echo '{ somekey = "somevalue"; }' > test-tmp/repo/default.nix
+tar -C test-tmp/repo -cf test-tmp/repo.tar .
 x=""
 for i in {1..64};do
 	x=x$x
-	mkdir -p test-tmp/many-dirs/$x
+	# mkdir -p test-tmp/many-dirs/$x
 done
 
+export XDG_CACHE_HOME="$PWD/test-tmp/xdg-cache"
+run "fetchTarball file://$PWD/test-tmp/repo.tar?$RANDOM$RANDOM$RANDOM"
+
+
+
+exit
 run 'with import <unstable> {}; bash'
 check import-channel \
 	"s/nix/var/nix/profiles/per-user/root/channels/unstable" \
