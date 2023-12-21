@@ -17,6 +17,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::unix::process::CommandExt;
 use std::process::{exit, Command};
 use ufcs::Pipe;
+use log::info;
 
 pub enum RunMode {
     /// no arg
@@ -196,7 +197,7 @@ fn is_alpha(b: u8) -> bool {
 }
 
 fn exit_version() {
-    println!(
+    info!(
         "cached-nix-shell v{}{}",
         env!("CARGO_PKG_VERSION"),
         option_env!("CNS_GIT_COMMIT")
@@ -204,9 +205,9 @@ fn exit_version() {
             .unwrap_or("".into())
     );
     if env!("CNS_NIX").is_empty() {
-        println!("Using nix-shell from $PATH");
+        info!("Using nix-shell from $PATH");
     } else {
-        println!("Using {}nix-shell", env!("CNS_NIX"));
+        info!("Using {}nix-shell", env!("CNS_NIX"));
     }
     std::io::stdout().flush().unwrap();
     Command::new(concat!(env!("CNS_NIX"), "nix-shell"))
