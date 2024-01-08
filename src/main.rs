@@ -19,8 +19,8 @@ use std::process::{exit, Command, Stdio};
 use std::time::Instant;
 use tempfile::NamedTempFile;
 use ufcs::Pipe;
-use log::{debug, error, warn,  info};
-use env_logger::{Builder, Env};
+use log::{error, warn,  info};
+use env_logger::{Builder, Env, Target};
 
 mod args;
 mod bash;
@@ -337,7 +337,6 @@ fn run_script(
 
     let exec = if is_literal_bash_string(nix_shell_args.interpreter.as_bytes())
     {
-        debug!("Interpreter is a literal string, executing directly");
         Command::new(nix_shell_args.interpreter)
             .arg(fname)
             .args(script_args)
@@ -345,7 +344,6 @@ fn run_script(
             .envs(&env.env)
             .exec()
     } else {
-        debug!("Interpreter is bash command, executing 'bash -c'");
         let mut exec_string = OsString::new();
         exec_string.push("exec ");
         exec_string.push(nix_shell_args.interpreter);
@@ -640,17 +638,27 @@ fn wrap(cmd: Vec<OsString>) {
     exit(1);
 }
 
-fn init_logger() {
+fn init_logger(target: Target) {
     let env = Env::default()
-        .filter("CNS_LOG_LEVEL")
+        .filter_or("CNS_LOG_LEVEL", "trace")
         .write_style("CNS_LOG_STYLE");
 
-    Builder::from_env(env).init();
+    Builder::from_env(env)
+        .format_level(false)
+        .target(target)
+        .init();
 }
 
 fn main() {
-    init_logger();
     let argv: Vec<OsString> = std::env::args_os().collect();
+
+    // We need to print version into stdout, this is why the condition.
+    // A naive assumption: the version could be only the first and a single CLI argument.
+    init_logger(if argv.len() == 2 && argv[1] == "--version" {
+        Target::Stdout
+    } else {
+        Target::Stderr
+    });
 
     if argv.len() >= 2 && argv[1] == "--wrap" {
         wrap(std::env::args_os().skip(2).collect());

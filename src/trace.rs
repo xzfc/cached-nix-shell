@@ -4,7 +4,7 @@ use std::ffi::{OsStr, OsString};
 use std::fs::{read, read_dir, read_link, symlink_metadata};
 use std::io::ErrorKind;
 use std::os::unix::ffi::OsStrExt;
-use log::error;
+use log::info;
 
 /// Output of trace-nix.so, sorted and deduplicated.
 pub struct Trace {
@@ -81,7 +81,7 @@ fn check_item_updated(k: &[u8], v: &[u8]) -> bool {
     };
 
     if res.as_bytes() != v {
-        error!(
+        info!(
             "{:?}: expected {:?}, got {:?}",
             fname,
             OsStr::from_bytes(v),
