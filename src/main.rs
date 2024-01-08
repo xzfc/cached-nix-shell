@@ -19,6 +19,8 @@ use std::process::{exit, Command, Stdio};
 use std::time::Instant;
 use tempfile::NamedTempFile;
 use ufcs::Pipe;
+use log::{error, warn,  info};
+use env_logger::{Builder, Env, Target};
 
 mod args;
 mod bash;
@@ -88,7 +90,7 @@ fn unwrap_or_errx<T>(x: Result<T, String>) -> T {
     match x {
         Ok(x) => x,
         Err(x) => {
-            eprintln!("cached-nix-shell: {x}");
+            error!("{x}");
             exit(1)
         }
     }
@@ -250,7 +252,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             .status()
             .expect("failed to execute nix-shell");
         if !status.success() {
-            eprintln!("cached-nix-shell: nix-shell: {status}");
+            error!("nix-shell: {status}");
             let code = status
                 .code()
                 .or_else(|| status.signal().map(|x| x + 127))
@@ -280,7 +282,7 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
         .expect("Can't read trace file");
     let trace = Trace::load(trace_data);
     if trace.check_for_changes() {
-        eprintln!("cached-nix-shell: some files are already updated, cache won't be reused");
+        info!("some files are already updated, cache won't be reused");
     }
     std::mem::drop(trace_file);
 
@@ -305,8 +307,8 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
             stderr.extend(exec.stderr);
         }
         if !exec.status.success() {
-            eprintln!(
-                "cached-nix-shell: failed to execute nix show-derivation"
+            error!(
+                "failed to execute nix show-derivation"
             );
             let _ = std::io::stderr().write_all(&stderr);
             exit(1);
@@ -335,7 +337,6 @@ fn run_script(
 
     let exec = if is_literal_bash_string(nix_shell_args.interpreter.as_bytes())
     {
-        // eprintln!("Interpreter is a literal string, executing directly");
         Command::new(nix_shell_args.interpreter)
             .arg(fname)
             .args(script_args)
@@ -343,7 +344,6 @@ fn run_script(
             .envs(&env.env)
             .exec()
     } else {
-        // eprintln!("Interpreter is bash command, executing 'bash -c'");
         let mut exec_string = OsString::new();
         exec_string.push("exec ");
         exec_string.push(nix_shell_args.interpreter);
@@ -359,7 +359,7 @@ fn run_script(
             .exec()
     };
 
-    eprintln!("cached-nix-shell: couldn't run: {exec:?}");
+    error!("couldn't run: {exec:?}");
     exit(1);
 }
 
@@ -441,7 +441,7 @@ fn run_from_args(args: Vec<OsString>) {
         .env_clear()
         .envs(&env.env)
         .exec();
-    eprintln!("cached-nix-shell: couldn't run: {exec:?}");
+    error!("couldn't run: {exec:?}");
     exit(1);
 }
 
@@ -457,10 +457,10 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvOptions {
     let mut env = if let Some(env) = check_cache(&inputs_hash) {
         env
     } else {
-        eprintln!("cached-nix-shell: updating cache");
+        info!("updating cache");
         let start = Instant::now();
         let outp = run_nix_shell(inp);
-        eprintln!("cached-nix-shell: done in {:?}", start.elapsed());
+        info!("done in {:?}", start.elapsed());
 
         // TODO: use flock
         cache_write(&inputs_hash, "inputs", &inputs);
@@ -586,7 +586,7 @@ fn cache_write(hash: &str, ext: &str, text: &[u8]) {
     };
     match f() {
         Ok(_) => (),
-        Err(e) => eprintln!("Warning: can't store cache: {e}"),
+        Err(e) => warn!("can't store cache: {e}"),
     }
 }
 
@@ -599,14 +599,14 @@ fn cache_symlink(hash: &str, ext: &str, target: &str) {
     };
     match f() {
         Ok(_) => (),
-        Err(e) => eprintln!("Warning: can't symlink to cache: {e}"),
+        Err(e) => warn!("can't symlink to cache: {e}"),
     }
 }
 
 fn wrap(cmd: Vec<OsString>) {
     if cmd.is_empty() {
-        eprintln!("cached-nix-shell: command not specified");
-        eprintln!("usage: cached-nix-shell --wrap COMMAND ARGS...");
+        error!("command not specified");
+        error!("usage: cached-nix-shell --wrap COMMAND ARGS...");
         exit(1);
     }
 
@@ -616,8 +616,8 @@ fn wrap(cmd: Vec<OsString>) {
     )
     .is_err()
     {
-        eprintln!(
-            "cached-nix-shell: couldn't wrap, {}/nix-shell is not executable",
+        error!(
+            "couldn't wrap, {}/nix-shell is not executable",
             env!("CNS_WRAP_PATH")
         );
         exit(1);
@@ -634,12 +634,31 @@ fn wrap(cmd: Vec<OsString>) {
         .args(&cmd[1..])
         .env("PATH", OsStr::from_bytes(&new_path))
         .exec();
-    eprintln!("cached-nix-shell: couldn't run: {exec}");
+    error!("couldn't run: {exec}");
     exit(1);
+}
+
+fn init_logger(target: Target) {
+    let env = Env::default()
+        .filter_or("CNS_LOG_LEVEL", "trace")
+        .write_style("CNS_LOG_STYLE");
+
+    Builder::from_env(env)
+        .format_level(false)
+        .target(target)
+        .init();
 }
 
 fn main() {
     let argv: Vec<OsString> = std::env::args_os().collect();
+
+    // We need to print version into stdout, this is why the condition.
+    // A naive assumption: the version could be only the first and a single CLI argument.
+    init_logger(if argv.len() == 2 && argv[1] == "--version" {
+        Target::Stdout
+    } else {
+        Target::Stderr
+    });
 
     if argv.len() >= 2 && argv[1] == "--wrap" {
         wrap(std::env::args_os().skip(2).collect());
