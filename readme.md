@@ -82,7 +82,7 @@ The following situations aren't handled by `cached-nix-shell` and may lead to st
 * There are related projects focused on using `nix-shell` for project developing:
   * [direnv](https://direnv.net/) with [use_nix](https://github.com/direnv/direnv/wiki/Nix)
   * [Cached and Persistent Nix shell with direnv integration](https://gist.github.com/mbbx6spp/731076cb8fc620b064b8e5b28fb1c796)
-  * [lorri](https://github.com/target/lorri), a `nix-shell` replacement for project development
+  * [lorri](https://github.com/nix-community/lorri), a `nix-shell` replacement for project development
     * [lorri #167](https://github.com/target/lorri/issues/167)
   * [nix-develop](https://gitlab.com/mightybyte/nix-develop), universal build tool featuring cached `nd shell` command
 
