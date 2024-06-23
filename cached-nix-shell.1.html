@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta http-equiv='content-type' value='text/html;charset=utf8'>
-  <meta name='generator' value='Ronn/v0.7.3 (http://github.com/rtomayko/ronn/tree/0.7.3)'>
+  <meta http-equiv='content-type' content='text/html;charset=utf-8'>
+  <meta name='generator' content='Ronn-NG/v0.10.1 (http://github.com/apjanke/ronn-ng/tree/0.10.1)'>
   <title>cached-nix-shell(1) - instant startup time for nix-shell(1)</title>
   <style type='text/css' media='all'>
   /* style: man */
@@ -76,16 +76,17 @@
     <li class='tr'>cached-nix-shell(1)</li>
   </ol>
 
-  <h2 id="NAME">NAME</h2>
+  
+
+<h2 id="NAME">NAME</h2>
 <p class="man-name">
   <code>cached-nix-shell</code> - <span class="man-whatis">instant startup time for <span class="man-ref">nix-shell<span class="s">(1)</span></span></span>
 </p>
-
 <h2 id="SYNOPSIS">SYNOPSIS</h2>
 
-<p><code>cached-nix-shell</code> [<em>options</em>]...<br />
-<code>cached-nix-shell</code> <em>shebang-script</em> [<em>args</em>]...<br />
-<code>cached-nix-shell --wrap</code> <em>cmd</em> [<em>args</em>]...<br /></p>
+<p><code>cached-nix-shell</code> [<em>options</em>]...<br>
+<code>cached-nix-shell</code> <em>shebang-script</em> [<em>args</em>]...<br>
+<code>cached-nix-shell --wrap</code> <em>cmd</em> [<em>args</em>]...<br></p>
 
 <h2 id="DESCRIPTION">DESCRIPTION</h2>
 
@@ -100,20 +101,23 @@ The design goal is to make a fast drop-in replacement for <code>nix-shell</code>
 <p>Additionally, the following new options are unique for <code>cached-nix-shell</code>:</p>
 
 <dl>
-<dt><code>--exec</code> <em>cmd</em> [<em>args</em>]... (not in shebang)</dt><dd><p>Command and arguments to be executed.
+<dt>
+<code>--exec</code> <em>cmd</em> [<em>args</em>]... (not in shebang)</dt>
+<dd>Command and arguments to be executed.
 It is similar to <code>--run</code> except that the command is executed directly rather than as shell command.
-It should be slightly faster and more convenient to pass arguments.</p></dd>
-<dt><code>--wrap</code> <em>cmd</em> [<em>args</em>]... (not in shebang, should be the first arg)</dt><dd><p>Run the command substituting every invocation of <code>nix-shell</code> with <code>cached-nix-shell</code>.
-This is done by adding our symlink named <code>nix-shell</code> to the <code>$PATH</code>.</p></dd>
+It should be slightly faster and more convenient to pass arguments.</dd>
+<dt>
+<code>--wrap</code> <em>cmd</em> [<em>args</em>]... (not in shebang, should be the first arg)</dt>
+<dd>Run the command substituting every invocation of <code>nix-shell</code> with <code>cached-nix-shell</code>.
+This is done by adding our symlink named <code>nix-shell</code> to the <code>$PATH</code>.</dd>
 </dl>
-
 
 <h2 id="ENVIRONMENT-VARIABLES">ENVIRONMENT VARIABLES</h2>
 
 <dl>
-<dt><code>IN_CACHED_NIX_SHELL</code></dt><dd>Is set to <code>1</code>.</dd>
+<dt><code>IN_CACHED_NIX_SHELL</code></dt>
+<dd>Is set to <code>1</code>.</dd>
 </dl>
-
 
 <h2 id="FILES">FILES</h2>
 
@@ -123,23 +127,27 @@ This is done by adding our symlink named <code>nix-shell</code> to the <code>$PA
 <h2 id="LIMITATIONS">LIMITATIONS</h2>
 
 <dl>
-<dt>Ambient environment variables</dt><dd><p>It is necessary to pass <code>--keep</code> <em>var</em> even without <code>--pure</code>
+<dt>Ambient environment variables</dt>
+<dd>It is necessary to pass <code>--keep</code> <em>var</em> even without <code>--pure</code>
 if the variable <em>var</em> is used inside a nix expression or a hook.
-Note that updating the value of <em>var</em> would invalidate the cache.</p></dd>
-<dt>Relative paths</dt><dd><p>When <code>--expr</code> or <code>--packages</code> option is given,
+Note that updating the value of <em>var</em> would invalidate the cache.</dd>
+<dt>Relative paths</dt>
+<dd>When <code>--expr</code> or <code>--packages</code> option is given,
 the cache is evaluated inside a separate empty directory,
 preventing access to relative paths from within nix expressions.
 Contrariwise, when a path to a shebang script or nix file is given,
 the cache is evaluated in the directory containing that script or file.
 This allows multiple <code>cached-nix-shell</code> invocations
-from different directories to reuse the same cache entry.</p></dd>
-<dt>Network access</dt><dd><p>Accessing network resources (e.g. via <code>builtins.fetchurl</code>) is not considered in cache invalidation logic.
-Consequently, <code>tarball-ttl</code> option (see <code>nix-conf</code>(5)) is not respected.</p></dd>
-<dt>Bash variables and functions</dt><dd><p>Only exported environment variables are preserved,
-but not global shell variables and functions set by <code>setup.sh</code>.</p></dd>
-<dt>Shell hooks</dt><dd><p>Shell hooks are executed only once, during a cache evaluation.</p></dd>
+from different directories to reuse the same cache entry.</dd>
+<dt>Network access</dt>
+<dd>Accessing network resources (e.g. via <code>builtins.fetchurl</code>) is not considered in cache invalidation logic.
+Consequently, <code>tarball-ttl</code> option (see <span class="man-ref"><code>nix-conf</code><span class="s">(5)</span></span>) is not respected.</dd>
+<dt>Bash variables and functions</dt>
+<dd>Only exported environment variables are preserved,
+but not global shell variables and functions set by <code>setup.sh</code>.</dd>
+<dt>Shell hooks</dt>
+<dd>Shell hooks are executed only once, during a cache evaluation.</dd>
 </dl>
-
 
 <h2 id="HOMEPAGE">HOMEPAGE</h2>
 
@@ -151,10 +159,9 @@ but not global shell variables and functions set by <code>setup.sh</code>.</p></
 
 <p><span class="man-ref">nix-shell<span class="s">(1)</span></span></p>
 
-
   <ol class='man-decor man-foot man foot'>
-    <li class='tl'>v0.1.5</li>
-    <li class='tc'>November 2021</li>
+    <li class='tl'>v0.1.5-21-g28c4aa2</li>
+    <li class='tc'>June 2024</li>
     <li class='tr'>cached-nix-shell(1)</li>
   </ol>
 
