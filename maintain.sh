@@ -10,6 +10,7 @@ trap rc=1 ERR; rc=0; case $1 in ################################################
 
 ;;format)
 	nixfmt default.nix shell.nix
+	clang-format -i nix-trace/trace-nix.c
 	cargo fmt
 
 ;;update)

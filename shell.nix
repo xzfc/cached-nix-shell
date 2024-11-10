@@ -10,6 +10,7 @@ pkgs.mkShell {
     ++ main.nativeBuildInputs
     ++ [
       pkgs.cargo-edit
+      pkgs.clang-tools
       pkgs.clippy
       pkgs.niv
       pkgs.nixfmt-rfc-style
