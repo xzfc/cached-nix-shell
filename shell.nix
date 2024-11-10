@@ -4,23 +4,22 @@
 let
   main = import ./default.nix { inherit pkgs; };
 in
-with pkgs;
-mkShell {
+pkgs.mkShell {
   buildInputs =
     main.buildInputs
     ++ main.nativeBuildInputs
     ++ [
-      cargo-edit
-      clippy
-      niv
-      nixfmt-rfc-style
-      rust-analyzer
-      rustc
-      rustfmt
-      shellcheck
+      pkgs.cargo-edit
+      pkgs.clippy
+      pkgs.niv
+      pkgs.nixfmt-rfc-style
+      pkgs.rust-analyzer
+      pkgs.rustc
+      pkgs.rustfmt
+      pkgs.shellcheck
       # Required for cargo
-      git
-      openssh
+      pkgs.git
+      pkgs.openssh
     ];
   inherit (main) BLAKE3_CSRC;
   CNS_IN_NIX_SHELL = "1";
