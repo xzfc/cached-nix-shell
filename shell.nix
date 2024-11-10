@@ -9,6 +9,7 @@ pkgs.mkShell {
     main.buildInputs
     ++ main.nativeBuildInputs
     ++ [
+      pkgs.b3sum
       pkgs.cargo-edit
       pkgs.clang-tools
       pkgs.clippy
