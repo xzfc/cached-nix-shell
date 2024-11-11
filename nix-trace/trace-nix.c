@@ -18,6 +18,8 @@
 
 static FILE *log_f = NULL;
 static const char *pwd = NULL;
+static int initialized = 0;
+
 static char tmp_prefix[PATH_MAX];          // "$TMPDIR/nix-$$-"
 static size_t tmp_prefix_dirname_len = 0;  // Length of "$TMPDIR"
 static size_t tmp_prefix_basename_len = 0; // Length of "nix-$$-"
@@ -60,7 +62,8 @@ static int enable(const char *);
 static void hash_dir(char[static LEN * 2 + 1], DIR *);
 static void hash_file(char[static LEN * 2 + 1], int);
 static void print_log(char, const char *, const char *);
-static void print_stat(int result, const char *path, struct stat *sb);
+static void print_open(int, const char *, int, int);
+static void print_stat(char, int, const char *, mode_t, uint64_t);
 static int strcmp_qsort(const void *, const void *);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +106,7 @@ static void __attribute__((constructor)) init() {
   if (realpath(tmpdir, tmpdir_real) == NULL) {
     fprintf(stderr, "trace-nix: cannot resolve TMPDIR: %s\n", strerror(errno));
     tmp_prefix[0] = '\0';
+    initialized = 1;
     return;
   }
   const char *tmpdirend = tmpdir_real + strlen(tmpdir_real);
@@ -117,6 +121,8 @@ static void __attribute__((constructor)) init() {
     fprintf(stderr, "trace-nix: TMPDIR too long\n");
     tmp_prefix[0] = '\0';
   }
+
+  initialized = 1;
 }
 
 #ifdef __APPLE__
@@ -140,16 +146,28 @@ static void __attribute__((constructor)) init() {
 
 #endif
 
+WRAPPER(int, stat, (const char *path, struct stat *sb)) {
+  int result = REAL(stat)(path, sb);
+  print_stat('s', result, path, sb->st_mode, sb->st_size);
+  return result;
+}
+
 WRAPPER(int, lstat, (const char *path, struct stat *sb)) {
   int result = REAL(lstat)(path, sb);
-  print_stat(result, path, sb);
+  print_stat('s', result, path, sb->st_mode, sb->st_size);
   return result;
 }
 
 #ifdef __linux__
+WRAPPER(int, lstat64, (const char *path, struct stat64 *sb)) {
+  int result = REAL(lstat64)(path, sb);
+  print_stat('s', result, path, sb->st_mode, sb->st_size);
+  return result;
+}
+
 WRAPPER(int, __lxstat, (int ver, const char *path, struct stat *sb)) {
   int result = REAL(__lxstat)(ver, path, sb);
-  print_stat(result, path, sb);
+  print_stat('s', result, path, sb->st_mode, sb->st_size);
   return result;
 }
 #endif
@@ -161,19 +179,22 @@ WRAPPER(int, open, (const char *path, int flags, ...)) {
   va_end(args);
 
   int fd = REAL(open)(path, flags, mode);
-
-  if (flags == (O_RDONLY | O_CLOEXEC) && enable(path)) {
-    if (fd == -1) {
-      print_log('f', path, "-");
-    } else {
-      char digest[LEN * 2 + 1];
-      hash_file(digest, fd);
-      print_log('f', path, digest);
-    }
-  }
-
+  print_open(fd, path, flags, mode);
   return fd;
 }
+
+#ifdef __linux__
+WRAPPER(int, open64, (const char *path, int flags, ...)) {
+  va_list args;
+  va_start(args, flags);
+  int mode = va_arg(args, int);
+  va_end(args);
+
+  int fd = REAL(open64)(path, flags, mode);
+  print_open(fd, path, flags, mode);
+  return fd;
+}
+#endif
 
 WRAPPER(DIR *, opendir, (const char *path)) {
   DIR *dirp = REAL(opendir)(path);
@@ -189,9 +210,38 @@ WRAPPER(DIR *, opendir, (const char *path)) {
   return dirp;
 }
 
+WRAPPER(int, openat, (int dirfd, const char *path, int flags, ...)) {
+  va_list args;
+  va_start(args, flags);
+  int mode = va_arg(args, int);
+  va_end(args);
+
+  int fd = REAL(openat)(dirfd, path, flags, mode);
+
+  if (dirfd == AT_FDCWD && flags == (O_RDONLY | O_CLOEXEC | O_DIRECTORY) &&
+      enable(path)) {
+    if (fd == -1) {
+      print_log('d', path, "-");
+    } else {
+      char digest[LEN * 2 + 1];
+      int fd2 = dup(fd);
+      if (fd2 == -1)
+        FATAL();
+      DIR *dirp = fdopendir(fd2);
+      if (dirp == NULL)
+        FATAL();
+      hash_dir(digest, dirp);
+      print_log('d', path, digest);
+      closedir(dirp);
+    }
+  }
+
+  return fd;
+}
+
 WRAPPER(int, mkdir, (const char *path, mode_t mode)) {
   int result = REAL(mkdir)(path, mode);
-  if (result == 0 && *tmp_prefix &&
+  if (initialized && result == 0 && *tmp_prefix &&
       memcmp(path, tmp_prefix,
              tmp_prefix_dirname_len + 1 + tmp_prefix_basename_len) == 0)
     print_log('t', path, "+");
@@ -200,7 +250,8 @@ WRAPPER(int, mkdir, (const char *path, mode_t mode)) {
 
 WRAPPER(int, unlinkat, (int dirfd, const char *path, int flags)) {
   int result = REAL(unlinkat)(dirfd, path, flags);
-  if (result != 0 || *tmp_prefix == '\0' || flags != AT_REMOVEDIR)
+  if (result != 0 || !initialized || *tmp_prefix == '\0' ||
+      flags != AT_REMOVEDIR)
     return result;
   size_t path_len = strlen(path);
   if (path_len > 45) // 45 == len(f"nix-{2**64}-{2**64}")
@@ -245,7 +296,9 @@ WRAPPER(int, unlinkat, (int dirfd, const char *path, int flags)) {
 ////////////////////////////////////////////////////////////////////////////////
 
 static int enable(const char *path) {
-  if (log_f == NULL || (*path != '/' && strcmp(path, "shell.nix")))
+  if (!initialized || log_f == NULL ||
+      (*path != '/' && strcmp(path, "default.nix") &&
+       strcmp(path, "shell.nix")))
     return 0;
 
   static const char *ignored_paths[] = {
@@ -272,32 +325,45 @@ static int enable(const char *path) {
   return 1;
 }
 
-static void print_stat(int result, const char *path, struct stat *sb) {
+static void print_stat(char op, int result, const char *path, mode_t st_mode,
+                       uint64_t st_size) {
   static char *buf = NULL;
   static off_t buf_len = 0;
 
   if (enable(path)) {
     if (result != 0) {
-      print_log('s', path, "-");
-    } else if (S_ISLNK(sb->st_mode)) {
+      print_log(op, path, "-");
+    } else if (S_ISLNK(st_mode)) {
       LOCK(buf_mutex);
-      if (buf_len < sb->st_size + 2) {
-        buf_len = sb->st_size + 2;
+      if (buf_len < st_size + 2) {
+        buf_len = st_size + 2;
         buf = realloc(buf, buf_len);
         if (buf == NULL)
           FATAL();
       }
-      ssize_t link_len = readlink(path, buf + 1, sb->st_size);
-      if (link_len < 0 || link_len != sb->st_size)
+      ssize_t link_len = readlink(path, buf + 1, st_size);
+      if (link_len < 0 || link_len != st_size)
         FATAL();
       buf[0] = 'l';
-      buf[sb->st_size + 1] = 0;
-      print_log('s', path, buf);
+      buf[st_size + 1] = 0;
+      print_log(op, path, buf);
       UNLOCK(buf_mutex);
-    } else if (S_ISDIR(sb->st_mode)) {
-      print_log('s', path, "d");
+    } else if (S_ISDIR(st_mode)) {
+      print_log(op, path, "d");
     } else {
-      print_log('s', path, "+");
+      print_log(op, path, "+");
+    }
+  }
+}
+
+static void print_open(int fd, const char *path, int flags, int mode) {
+  if ((flags & ~O_NOFOLLOW) == (O_RDONLY | O_CLOEXEC) && enable(path)) {
+    if (fd == -1) {
+      print_log('f', path, "-");
+    } else {
+      char digest[LEN * 2 + 1];
+      hash_file(digest, fd);
+      print_log('f', path, digest);
     }
   }
 }
