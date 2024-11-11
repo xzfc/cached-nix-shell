@@ -29,7 +29,8 @@ check_fast
 # This test produces a lot of output, so, pipe it through `tail`
 run cached-nix-shell -vp --run : | tail -n3
 check_slow
-check_stderr_contains "^evaluating file '/"
+# "evaluating" for nix, "copying" for lix
+check_stderr_contains "^evaluating file '/\|^copying '/nix/store/"
 
 run cached-nix-shell -vp --run :
 check_fast
