@@ -24,6 +24,9 @@ static char tmp_prefix[PATH_MAX];          // "$TMPDIR/nix-$$-"
 static size_t tmp_prefix_dirname_len = 0;  // Length of "$TMPDIR"
 static size_t tmp_prefix_basename_len = 0; // Length of "nix-$$-"
 
+static char tarball_cache[PATH_MAX]; // "$XDG_CACHE_HOME/nix/tarball-cache"
+static size_t tarball_cache_len = 0;
+
 #define FATAL()                                                                \
   do {                                                                         \
     fprintf(stderr, "nix-trace.c:%d: %s: %s\n", __LINE__, __func__,            \
@@ -57,6 +60,7 @@ static pthread_mutex_t buf_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Predeclarations
 
+static void set_tarball_cache(void);
 static void convert_digest(char[static LEN * 2 + 1], const uint8_t[static LEN]);
 static int enable(const char *);
 static void hash_dir(char[static LEN * 2 + 1], DIR *);
@@ -96,6 +100,8 @@ static void __attribute__((constructor)) init() {
   INIT_MUTEX(print_mutex);
   INIT_MUTEX(buf_mutex);
 
+  set_tarball_cache();
+
   // References:
   //   https://github.com/NixOS/nix/blob/2.15.1/src/libutil/filesystem.cc#L18
   //   https://github.com/NixOS/nix/blob/2.15.1/src/libutil/util.hh#L337-L338
@@ -123,6 +129,24 @@ static void __attribute__((constructor)) init() {
   }
 
   initialized = 1;
+}
+
+static void set_tarball_cache(void) {
+  char buf[PATH_MAX];
+  const char *env;
+  if ((env = getenv("XDG_CACHE_HOME")))
+    snprintf(buf, sizeof buf, "%s/nix/tarball-cache", env);
+  else if ((env = getenv("HOME")))
+    snprintf(buf, sizeof buf, "%s/.cache/nix/tarball-cache", env);
+  else {
+    tarball_cache[0] = '\0';
+    return;
+  }
+  if (realpath(buf, tarball_cache) == NULL) {
+    tarball_cache[0] = '\0';
+    return;
+  }
+  tarball_cache_len = strlen(tarball_cache);
 }
 
 #ifdef __APPLE__
@@ -245,6 +269,8 @@ WRAPPER(int, mkdir, (const char *path, mode_t mode)) {
       memcmp(path, tmp_prefix,
              tmp_prefix_dirname_len + 1 + tmp_prefix_basename_len) == 0)
     print_log('t', path, "+");
+  if (initialized && result == 0 && !*tarball_cache)
+    set_tarball_cache();
   return result;
 }
 
@@ -321,7 +347,9 @@ static int enable(const char *path) {
   for (const char **p = ignored_prefices; *p; p++)
     if (!memcmp(path, *p, strlen(*p)))
       return 0;
-
+  if (*tarball_cache && !memcmp(path, tarball_cache, tarball_cache_len) &&
+      (path[tarball_cache_len] == '\0' || path[tarball_cache_len] == '/'))
+    return 0;
   return 1;
 }
 
