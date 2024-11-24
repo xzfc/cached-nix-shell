@@ -3,12 +3,11 @@ use crate::bash::is_literal_bash_string;
 use crate::path_clean::PathClean;
 use crate::trace::Trace;
 use itertools::{chain, Itertools};
-use once_cell::sync::Lazy;
 use rustix::fs::{access, Access};
 use std::collections::{BTreeMap, HashSet};
 use std::env::current_dir;
 use std::ffi::{OsStr, OsString};
-use std::fs::{read, File};
+use std::fs::{read, write};
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::prelude::OsStringExt;
@@ -35,11 +34,6 @@ struct EnvOptions {
     bashopts: OsString,
     shellopts: OsString,
 }
-
-static XDG_DIRS: Lazy<xdg::BaseDirectories> = Lazy::new(|| {
-    xdg::BaseDirectories::with_prefix("cached-nix-shell")
-        .expect("Can't get find base cache directory")
-});
 
 /// Serialize environment variables in the same way as `env -0` does.
 fn serialize_env(env: &EnvMap) -> Vec<u8> {
@@ -167,6 +161,20 @@ fn absolute(path: &Path) -> PathBuf {
         // symlink resolving.
         current_dir().expect("Can't get PWD").join(path).clean()
     }
+}
+
+fn xdg_cache_dir() -> PathBuf {
+    std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .filter(|x| x.is_absolute())
+        .unwrap_or_else(|| {
+            // This crate only supports Unix, and the behavior of
+            // `std::env::home_dir()` is only problematic on Windows.
+            #[allow(deprecated)]
+            std::env::home_dir()
+                .expect("Can't get home directory")
+                .join(".cache")
+        })
 }
 
 fn args_to_inp(pwd: PathBuf, x: &Args) -> NixShellInput {
@@ -453,8 +461,9 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvOptions {
     ]);
 
     let inputs_hash = blake3::hash(&inputs).to_hex().as_str().to_string();
+    let cache = xdg_cache_dir().join("cached-nix-shell").join(&inputs_hash);
 
-    let mut env = if let Some(env) = check_cache(&inputs_hash) {
+    let mut env = if let Some(env) = check_cache(&cache) {
         env
     } else {
         eprintln!("cached-nix-shell: updating cache");
@@ -462,11 +471,17 @@ fn cached_shell_env(pure: bool, inp: &NixShellInput) -> EnvOptions {
         let outp = run_nix_shell(inp);
         eprintln!("cached-nix-shell: done in {:?}", start.elapsed());
 
-        // TODO: use flock
-        cache_write(&inputs_hash, "inputs", &inputs);
-        cache_write(&inputs_hash, "env", &serialize_env(&outp.env));
-        cache_write(&inputs_hash, "trace", &outp.trace.serialize());
-        cache_symlink(&inputs_hash, "drv", &outp.drv);
+        if let Err(e) = std::fs::create_dir_all(cache.parent().unwrap()) {
+            eprintln!(
+                "cached-nix-shell: warning: can't create cache directory: {e}"
+            );
+        } else {
+            // TODO: use flock
+            cache_write(&cache, "inputs", &inputs);
+            cache_write(&cache, "env", &serialize_env(&outp.env));
+            cache_write(&cache, "trace", &outp.trace.serialize());
+            cache_symlink(&cache, "drv", &outp.drv);
+        }
 
         outp.env
     };
@@ -559,19 +574,24 @@ fn build_bash_options(env: &EnvOptions) -> Vec<OsString> {
     .collect()
 }
 
-fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
-    let env_fname = XDG_DIRS.find_cache_file(format!("{hash}.env"))?;
-    let drv_fname = XDG_DIRS.find_cache_file(format!("{hash}.drv"))?;
-    let trace_fname = XDG_DIRS.find_cache_file(format!("{hash}.trace"))?;
+fn check_cache(cache: &Path) -> Option<BTreeMap<OsString, OsString>> {
+    let env = read(cache.with_extension("env"))
+        .ok()?
+        .pipe(deserealize_env);
 
-    let env = read(env_fname).unwrap().pipe(deserealize_env);
+    let drv_fname = cache.with_extension("drv");
+    if !drv_fname.exists() {
+        return None;
+    }
 
     if let Err(e) = drv::derivation_is_ok(drv_fname) {
         eprintln!("cached-nix-shell: {}", e);
         return None;
     }
 
-    let trace = read(trace_fname).unwrap().pipe(Trace::load_sorted);
+    let trace = read(cache.with_extension("trace"))
+        .ok()?
+        .pipe(Trace::load_sorted);
     if trace.check_for_changes() {
         return None;
     }
@@ -579,29 +599,17 @@ fn check_cache(hash: &str) -> Option<BTreeMap<OsString, OsString>> {
     Some(env)
 }
 
-fn cache_write(hash: &str, ext: &str, text: &[u8]) {
-    let f = || -> Result<(), std::io::Error> {
-        let fname = XDG_DIRS.place_cache_file(format!("{hash}.{ext}"))?;
-        let mut file = File::create(fname)?;
-        file.write_all(text)?;
-        Ok(())
-    };
-    match f() {
-        Ok(_) => (),
-        Err(e) => eprintln!("Warning: can't store cache: {e}"),
+fn cache_write(cache: &Path, ext: &str, text: &[u8]) {
+    if let Err(e) = write(cache.with_extension(ext), &text) {
+        eprintln!("cached-nix-shell: warning: can't store cache: {e}");
     }
 }
 
-fn cache_symlink(hash: &str, ext: &str, target: &str) {
-    let f = || -> Result<(), std::io::Error> {
-        let fname = XDG_DIRS.place_cache_file(format!("{hash}.{ext}"))?;
-        let _ = std::fs::remove_file(&fname);
-        std::os::unix::fs::symlink(target, &fname)?;
-        Ok(())
-    };
-    match f() {
-        Ok(_) => (),
-        Err(e) => eprintln!("Warning: can't symlink to cache: {e}"),
+fn cache_symlink(cache: &Path, ext: &str, target: &str) {
+    let fname = cache.with_extension(ext);
+    let _ = std::fs::remove_file(&fname);
+    if let Err(e) = std::os::unix::fs::symlink(target, &fname) {
+        eprintln!("cached-nix-shell: warning: can't symlink to cache: {e}")
     }
 }
 
