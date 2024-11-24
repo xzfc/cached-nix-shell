@@ -192,6 +192,8 @@ fn args_to_inp(pwd: PathBuf, x: &Args) -> NixShellInput {
             // tmp dir
             "TMPDIR",
             "XDG_RUNTIME_DIR",
+            // $XDG_CACHE_HOME/nix: eval, fetcher
+            "XDG_CACHE_HOME",
             // ssl-related
             "CURL_CA_BUNDLE",
             "GIT_SSL_CAINFO",
@@ -287,7 +289,8 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
     trace_file
         .read_to_end(&mut trace_data)
         .expect("Can't read trace file");
-    let trace = Trace::load_raw(trace_data);
+    let trace =
+        Trace::load_raw(trace_data).filter_out(&xdg_cache_dir().join("nix"));
     if trace.check_for_changes() {
         eprintln!("cached-nix-shell: some files are already updated, cache won't be reused");
     }

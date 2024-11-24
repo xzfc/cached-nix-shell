@@ -5,6 +5,7 @@ use std::ffi::{OsStr, OsString};
 use std::fs::{read, read_dir, read_link, symlink_metadata};
 use std::io::ErrorKind;
 use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
 use ufcs::Pipe;
 
 pub struct Trace(Vec<(Vec<u8>, Vec<u8>)>);
@@ -80,6 +81,14 @@ impl Trace {
         }
 
         Trace(result.into_iter().collect())
+    }
+
+    /// Filter out entries starting with the given path.
+    pub fn filter_out(mut self, path: &Path) -> Self {
+        self.0.retain(|(k, _)| {
+            !Path::new(OsStr::from_bytes(&k[1..])).starts_with(path)
+        });
+        self
     }
 
     /// Load trace from a vector of bytes, as stored in the cache.
