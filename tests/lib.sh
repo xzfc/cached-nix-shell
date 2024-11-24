@@ -2,7 +2,14 @@ set -e
 
 export XDG_CACHE_HOME=$PWD/tmp/cache
 rm -rf ./tmp
-mkdir -p ./tmp
+mkdir -p ./tmp/cache
+
+if [ -d ./tmp.nix-cache ]; then
+	cp -r ./tmp.nix-cache ./tmp/cache/nix
+else
+	nix-shell -p --run :
+	cp -r ./tmp/cache/nix ./tmp.nix-cache
+fi
 
 printf "\n\33[1m* Test file %s\33[m\n" "$0"
 
