@@ -315,11 +315,10 @@ fn run_nix_shell(inp: &NixShellInput) -> NixShellOutput {
 
         // Path to .drv file is always in ASCII, so no information is lost.
         let output = String::from_utf8_lossy(&exec.stdout);
-        let output: serde_json::Value =
-            serde_json::from_str(&output).expect("failed to parse json");
+        let output = microjson::JSONValue::load(&output);
         // The first key of the toplevel object contains the path to .drv file.
-        let (drv, _) = output.as_object().unwrap().into_iter().next().unwrap();
-        drv.clone()
+        let (drv, _) = output.iter_object().unwrap().next().unwrap().unwrap();
+        drv.to_string()
     };
 
     NixShellOutput { env, trace, drv }
