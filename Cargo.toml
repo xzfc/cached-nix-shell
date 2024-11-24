@@ -10,7 +10,7 @@ which = "6.0.1"
 
 [dependencies]
 blake3 = "1.5.1"
-bytelines = "2.5.0"
+bytelines = { version = "2.5.0", default-features = false }
 itertools = "0.13.0"
 nix = { version = "0.29.0", features = [ "fs" ] }
 once_cell = "1.19.0"
