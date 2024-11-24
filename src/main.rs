@@ -3,8 +3,8 @@ use crate::bash::is_literal_bash_string;
 use crate::path_clean::PathClean;
 use crate::trace::Trace;
 use itertools::{chain, Itertools};
-use nix::unistd::{access, AccessFlags};
 use once_cell::sync::Lazy;
+use rustix::fs::{access, Access};
 use std::collections::{BTreeMap, HashSet};
 use std::env::current_dir;
 use std::ffi::{OsStr, OsString};
@@ -117,7 +117,7 @@ fn minimal_essential_path() -> OsString {
             .unwrap()
             .pipe(std::env::split_paths)
             .find(|dir| {
-                if access(&dir.join(binary), AccessFlags::X_OK).is_err() {
+                if access(dir.join(binary), Access::EXEC_OK).is_err() {
                     return false;
                 }
 
@@ -614,7 +614,7 @@ fn wrap(cmd: Vec<OsString>) {
 
     if access(
         Path::new(&format!("{}/nix-shell", env!("CNS_WRAP_PATH"))),
-        AccessFlags::X_OK,
+        Access::EXEC_OK,
     )
     .is_err()
     {
